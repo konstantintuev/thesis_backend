@@ -1,0 +1,152 @@
+import logging
+
+import numpy as np
+from langchain_core.messages import HumanMessage, SystemMessage
+
+if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+    logging.basicConfig(level=logging.INFO)
+
+from langchain_together.embeddings import TogetherEmbeddings
+from tenacity import wait_random_exponential, stop_after_attempt, retry
+
+from raptor.raptor import RetrievalAugmentation, RetrievalAugmentationConfig
+
+from raptor.raptor import BaseSummarizationModel
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_groq import ChatGroq
+
+
+class CustomSummarizationModel(BaseSummarizationModel):
+    def __init__(self):
+        # Initialize your model here
+        self.summarizer_chat = ChatGroq(temperature=0, model_name="mixtral-8x7b-32768", max_tokens=500)
+        pass
+
+    @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
+    def summarize(self, context, max_tokens=500, stop_sequence=None):
+
+        try:
+            system = "You are a helpful assistant."
+            human = f"Write a summary of the following, including as many key details as possible: {context}:"
+
+            resp = self.summarizer_chat.invoke([
+                SystemMessage(content=system),
+                HumanMessage(content=human)
+            ])
+
+            return resp.content
+
+        except Exception as e:
+            print(e)
+            return e
+
+
+from raptor.raptor import BaseQAModel
+
+
+class CustomQAModel(BaseQAModel):
+    def __init__(self):
+        # Initialize your model here
+        pass
+
+    def answer_question(self, context, question):
+        # Implement your QA logic here
+        # Return the answer as a string
+        answer = "Your answer here"
+        return answer
+
+
+from raptor.raptor import BaseEmbeddingModel
+
+embeddings = TogetherEmbeddings(model="togethercomputer/m2-bert-80M-8k-retrieval")
+
+class CustomEmbeddingModel(BaseEmbeddingModel):
+    def __init__(self):
+        # Initialize your model here
+        pass
+
+    @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
+    def create_embedding(self, text):
+        # Implement your embedding logic here
+        # Return the embedding as a numpy array or a list of floats
+        #embedding = [0.0] * embedding_dim  # Replace with actual embedding logic
+
+        #return np.random.rand(768)
+
+        try:
+            embedding = embeddings.embed_documents([text])
+            # convert list of floats (embedding[0]) to numpy array
+            return np.array(embedding[0])
+        except Exception as e:
+            print(e)
+            return e
+
+
+# Assuming the tree structure is already available as `tree`
+
+def node_to_dict(node, layer):
+    """Convert a tree node to a dictionary format for JSON."""
+    node_dict = {
+        "embedding": node.embeddings['EMB'].tolist(),
+        "text": node.text,
+        "children": [child for child in node.children],
+        "layer": layer
+    }
+    return node_dict
+
+
+def tree_to_dict(tree):
+    """Convert the entire tree to a dictionary format for JSON using layer_to_nodes."""
+    all_nodes_dict = {}
+    for layer, nodes in tree.layer_to_nodes.items():
+        for node in nodes:
+            all_nodes_dict[node.index] = node_to_dict(node, layer)
+    return all_nodes_dict
+
+# Initialize your custom models
+custom_summarizer = CustomSummarizationModel()
+custom_qa = CustomQAModel()
+custom_embedding = CustomEmbeddingModel()
+
+# Create a config with your custom models
+custom_config = RetrievalAugmentationConfig(
+    summarization_model=custom_summarizer,
+    qa_model=custom_qa,
+    embedding_model=custom_embedding,
+
+)
+
+import json
+
+SAVE_PATH = "../raptor/demo/cinderella"
+# Initialize RAPTOR with your custom config
+RA = RetrievalAugmentation(config=custom_config)#,tree=SAVE_PATH)
+
+print("NE")
+def main():
+    with open('../raptor/demo/sample.txt', 'r') as file:
+        text = file.read()
+    #print(text)
+    # Convert the tree to dictionary
+    tree_dict = tree_to_dict(RA.tree)
+
+    # Convert the dictionary to JSON
+    tree_json = json.dumps(tree_dict, indent=4)
+
+    # Save the JSON to a file
+    with open('../raptor/demo/tree_structure.json', 'w') as json_file:
+        json_file.write(tree_json)
+
+    # Output the JSON for inspection
+    print(tree_json)
+    #return
+    #RA.add_documents(text)
+    #RA.save(SAVE_PATH)
+    #RA.answer_question("What is Cinderella?")
+
+
+if __name__ == "__main__":
+    print("OK")
+    main()
