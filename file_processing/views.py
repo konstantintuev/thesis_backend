@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 import os
 import aiofiles
 
-from file_processing.utils import RA, tree_to_dict, custom_config
+from file_processing.utils import tree_to_dict, custom_config
 from raptor.raptor import RetrievalAugmentation
 
 nest_asyncio.apply()
@@ -53,13 +53,13 @@ async def upload_pdf(request):
 @async_to_sync
 async def pdf_to_chunks(request):
     if request.method == 'POST':
-        ret = RetrievalAugmentation(config=custom_config, tree="/Users/konstantintuev/Projects/Thesis/thesis_backend/raptor/demo/random")
-        tree_dict = tree_to_dict(ret.tree)
+        ret = RetrievalAugmentation(config=custom_config)#, tree="/Users/konstantintuev/Projects/Thesis/thesis_backend/raptor/demo/random")
+        #tree_dict = tree_to_dict(ret.tree)
 
         # Convert the dictionary to JSON
-        tree_json = json.dumps(tree_dict, indent=4)
+        #tree_json = json.dumps(tree_dict, indent=4)
 
-        return HttpResponse(tree_json, content_type="application/json")
+        #return HttpResponse(tree_json, content_type="application/json")
         file = request.FILES['file']
         temp_pdf_received = os.path.join(temp_dir, f'{uuid.uuid4()}.pdf')
         async with aiofiles.open(temp_pdf_received, 'wb') as f:
@@ -77,11 +77,11 @@ async def pdf_to_chunks(request):
         documents_text = ' '.join([doc.text for doc in documents])
         print(documents_text)
 
-        RA.add_documents(documents_text)
+        ret.add_documents(documents_text)
         SAVE_PATH = "../raptor/demo/random"
-        RA.save(SAVE_PATH)
+        ret.save(SAVE_PATH)
 
-        tree_dict = tree_to_dict(RA.tree)
+        tree_dict = tree_to_dict(ret.tree)
 
         # Convert the dictionary to JSON
         tree_json = json.dumps(tree_dict, indent=4)
