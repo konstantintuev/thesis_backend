@@ -229,6 +229,10 @@ print("NE")
 def main():
     with open('../raptor/demo/sample.txt', 'r') as file:
         text = file.read()
+    RA.add_documents(text)
+    RA.save(SAVE_PATH)
+    RA.answer_question("What is Cinderella?")
+
     #print(text)
     # Convert the tree to dictionary
     tree_dict = tree_to_dict(RA.tree)
@@ -242,10 +246,8 @@ def main():
 
     # Output the JSON for inspection
     print(tree_json)
-    #return
-    #RA.add_documents(text)
-    #RA.save(SAVE_PATH)
-    #RA.answer_question("What is Cinderella?")
+    return
+
 
 
 if __name__ == "__main__":
