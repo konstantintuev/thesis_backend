@@ -246,14 +246,13 @@ class SemanticChunker(BaseDocumentTransformer):
 
         # Define percentiles and corresponding weights
         percentiles = list(range(95, 10, -5))
-        """ 
-        # Weighted Random Sampling potentially, if we want to try lower percentiles faster
-        weights = [i ** 2 for i in range(len(percentiles), 0, -1)]  # Weight higher percentiles more heavily
 
-        # Sample percentiles based on weights
-        sampled_percentiles = random.choices(percentiles, weights, k=10)
-        for perc in sorted(sampled_percentiles, reverse=True):
-        """
+        # Weighted Random Sampling potentially, if we want to try lower percentiles faster
+        #weights = [i ** 2 for i in range(len(percentiles), 0, -1)]  # Weight higher percentiles more heavily
+
+        #sampled_percentiles = random.choices(percentiles, weights, k=10)
+        #for perc in sorted(sampled_percentiles, reverse=True):
+
         for perc in percentiles:
             threshold = np.percentile(segment_distances, perc)
             potential_splits = [i for i, dist in enumerate(segment_distances) if dist > threshold]

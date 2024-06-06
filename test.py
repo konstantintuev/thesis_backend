@@ -1,26 +1,19 @@
-import os
-import umap
-import numpy as np
-from sklearn.decomposition import PCA
+import torch
 
-# Set OpenMP to use a single thread
-#os.environ['OMP_NUM_THREADS'] = '1'
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 
-# Create a small random dataset
-data = np.random.rand(45, 768)
 
-# Check data integrity
-print(type(data), data.shape)
+def main():
+    model_name = "BAAI/bge-m3"
 
-# Reduce embeddings with UMAP
-print("UMAP")
-reducer = umap.UMAP(n_neighbors=6, n_components=10, metric='cosine')
-reduced_embeddings = reducer.fit_transform(data)
-print(type(reduced_embeddings), reduced_embeddings.shape)
-print(reduced_embeddings)
 
-print("PCA")
-pca = PCA(n_components=10)
-reduced_embeddings = pca.fit_transform(data)
-print(type(reduced_embeddings), reduced_embeddings.shape)
-print(reduced_embeddings)
+    model_kwargs = {"device": "mps"}
+    encode_kwargs = {"normalize_embeddings": True}
+    hf = HuggingFaceBgeEmbeddings(
+        model_name=model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs
+    )
+    embedding = hf.embed_query("hi this is harrison")
+    len(embedding)
+
+if __name__ == "__main__":
+    main()

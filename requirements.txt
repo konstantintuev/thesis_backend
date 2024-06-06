@@ -59,3 +59,4 @@ sniffio
 SQLAlchemy
 sqlparse
 tenacity
+umap-learn

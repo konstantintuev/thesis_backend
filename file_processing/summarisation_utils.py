@@ -1,5 +1,6 @@
 from typing import List
 
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.embeddings import Embeddings
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import pytorch_cos_sim
@@ -21,8 +22,15 @@ class SentenceTransformerEmbeddings(Embeddings):
         return self.model.encode(text, convert_to_tensor=False).tolist()
 
 
-def chunk_into_semantic_chapters(text: str) -> [str]:
-    chunker = SemanticChunker(SentenceTransformerEmbeddings())
+def chunk_into_semantic_chapters(text: str) -> List[str]:
+    model_name = "BAAI/bge-m3"
+
+    model_kwargs = {"device": "mps"}
+    encode_kwargs = {"normalize_embeddings": True}
+    model = HuggingFaceBgeEmbeddings(
+        model_name=model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs
+    )
+    chunker = SemanticChunker(model)
     return chunker.split_text(text)
 
 def test_semantic_chapter_chunking():
