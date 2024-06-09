@@ -315,13 +315,14 @@ def main():
 
 
 def main_semantic_chapters():
-    RA = RetrievalAugmentation(config=custom_config)
+    RA = RetrievalAugmentation(config=custom_config, tree=SAVE_PATH)
     with open('../raptor/demo/sample.txt', 'r') as file:
         text = file.read()
     out = chunk_into_semantic_chapters(text)
-    RA.add_semantic_chapters(out)
-    RA.save(SAVE_PATH)
-    RA.answer_question("What is Cinderella?")
+    #RA.add_semantic_chapters(out)
+    #RA.save(SAVE_PATH)
+    #RA.answer_question("What is Cinderella?")
+    RA.answer_question("What moral lessons can be learned from the story of Cinderella?")
 
     # print(text)
     # Convert the tree to dictionary
