@@ -6,7 +6,8 @@ import numpy as np
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from file_processing.summarisation_utils import chunk_into_semantic_chapters
+from file_processing.document_processor.embeddings import embeddings_model
+from file_processing.document_processor.summarisation_utils import chunk_into_semantic_chapters
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -218,13 +219,7 @@ class TogetherEmbeddingModel(BaseEmbeddingModel):
 
 class BGE3EmbeddingModel(BaseEmbeddingModel):
     def __init__(self):
-        model_name = "BAAI/bge-m3"
-
-        model_kwargs = {"device": "mps"}
-        encode_kwargs = {"normalize_embeddings": True}
-        self.model = HuggingFaceBgeEmbeddings(
-            model_name=model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs
-        )
+        self.model = embeddings_model
 
     @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
     def create_embedding(self, text):
@@ -240,7 +235,7 @@ class BGE3EmbeddingModel(BaseEmbeddingModel):
 def node_to_dict(node, layer):
     """Convert a tree node to a dictionary format for JSON."""
     node_dict = {
-        "embedding": node.embeddings['EMB'].tolist(),
+        "embedding": node.embeddings['EMB'],
         "text": node.text,
         "children": [child for child in node.children],
         "layer": layer
@@ -319,8 +314,8 @@ def main_semantic_chapters():
     with open('../raptor/demo/sample.txt', 'r') as file:
         text = file.read()
     out = chunk_into_semantic_chapters(text)
-    #RA.add_semantic_chapters(out)
-    #RA.save(SAVE_PATH)
+    RA.add_semantic_chapters(out)
+    RA.save(SAVE_PATH)
     #RA.answer_question("What is Cinderella?")
     RA.answer_question("What moral lessons can be learned from the story of Cinderella?")
 

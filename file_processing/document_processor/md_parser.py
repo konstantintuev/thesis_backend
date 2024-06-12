@@ -77,7 +77,7 @@ def semantic_markdown_chunks(md_content: str, headers_to_split_on: list) -> (lis
 
     html_splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
     html_header_splits = html_splitter.split_text(modified_html)
-
+    # TODO: Potentially, combine too small html_header chunks
     return html_header_splits, items_dict
 
 def test():

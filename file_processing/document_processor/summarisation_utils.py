@@ -5,7 +5,7 @@ from langchain_core.embeddings import Embeddings
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import pytorch_cos_sim
 
-
+from file_processing.document_processor.embeddings import embeddings_model
 from file_processing.document_processor.md_parser import semantic_markdown_chunks, html_to_plain_text
 from file_processing.document_processor.semantic_text_splitter import SemanticChunker
 from file_processing.document_processor.types import UUIDExtractedItemDict
@@ -25,22 +25,17 @@ class SentenceTransformerEmbeddings(Embeddings):
         return self.model.encode(text, convert_to_tensor=False).tolist()
 
 
-def chunk_into_semantic_chapters(text: str, uuid_items: UUIDExtractedItemDict = {}) -> List[str]:
-    model_name = "BAAI/bge-m3"
-
-    model_kwargs = {"device": "mps"}
-    encode_kwargs = {"normalize_embeddings": True}
-    model = HuggingFaceBgeEmbeddings(
-        model_name=model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs
-    )
+def chunk_into_semantic_chapters(model: Embeddings, text: str, uuid_items: UUIDExtractedItemDict = {}) -> List[str]:
     chunker = SemanticChunker(model)
     return chunker.split_text(text, uuid_items)
+
 
 def test_semantic_chapter_chunking():
     with open('../raptor/demo/sample.txt', 'r') as file:
         text = file.read()
     out = chunk_into_semantic_chapters(text)
     print(out)
+
 
 def test_md_chunking():
     with open("../raptor/demo/random_paper.md", 'r', encoding='utf-8') as file:
@@ -58,6 +53,7 @@ def test_md_chunking():
         out = chunk_into_semantic_chapters(plain_text, uuid_items)
         semantic_chapters.extend(out)
     print("ok")
+
 
 if __name__ == "__main__":
     #test_semantic_chapter_chunking()
