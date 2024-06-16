@@ -16,6 +16,8 @@ embeddings_model = HuggingFaceBgeEmbeddings(
 )
 
 """Inspired by: https://gist.github.com/aeroaks/ac4dbed9c184607a330c"""
+
+
 def TimerReset(*args, **kwargs):
     """ Global function for Timer """
     return _TimerReset(*args, **kwargs)
@@ -44,13 +46,9 @@ class _TimerReset(threading.Thread):
         self.finished.set()
 
     def run(self):
-        while self.resetted:
-            self.resetted = False
+        while not self.finished.is_set():
             self.finished.wait(self.interval)
-
-        if not self.finished.is_set():
             self.function(*self.args, **self.kwargs)
-        self.finished.set()
 
     def reset(self, interval=None):
         """ Reset the timer """
@@ -58,12 +56,11 @@ class _TimerReset(threading.Thread):
             self.interval = interval
 
         self.resetted = True
-        self.finished.set()
         self.finished.clear()
 
 
 class PendingLangchainEmbeddings(Embeddings):
-    def __init__(self, model: Embeddings, initial_interval: int = 600, subsequent_interval: int = 5):
+    def __init__(self, model: Embeddings, initial_interval: int = 10, subsequent_interval: int = 5):
         self.model = model
         self.initial_interval = initial_interval
         self.subsequent_interval = subsequent_interval
@@ -122,3 +119,6 @@ class PendingLangchainEmbeddings(Embeddings):
     def embed_query(self, text: str) -> List[float]:
         """Embed query text."""
         return self.model.embed_query(text)
+
+
+pending_embeddings_singleton = PendingLangchainEmbeddings(embeddings_model)

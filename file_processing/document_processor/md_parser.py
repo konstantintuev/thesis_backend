@@ -64,7 +64,7 @@ def html_to_plain_text(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     return soup.get_text()
 
-def semantic_markdown_chunks(md_content: str, headers_to_split_on: list) -> (list[Document], UUIDExtractedItemDict):
+def semantic_markdown_chunks(md_content: str, headers_to_split_on: list, min_length: int) -> (list[str], UUIDExtractedItemDict):
     # Extract and replace tables first
     modified_content, tables_dict = extract_and_replace_tables(md_content)
 
@@ -77,8 +77,21 @@ def semantic_markdown_chunks(md_content: str, headers_to_split_on: list) -> (lis
 
     html_splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
     html_header_splits = html_splitter.split_text(modified_html)
+    # Merging small chunks measured by character count
+    final_chunks = []
+    current_chunk: str = html_header_splits[0].page_content
+
+    for chunk in html_header_splits[1:]:
+        if len(current_chunk) < min_length:
+            current_chunk += "\n" + chunk.page_content
+        else:
+            final_chunks.append(current_chunk)
+            current_chunk = chunk.page_content
+
+    if current_chunk:
+        final_chunks.append(current_chunk)
     # TODO: Potentially, combine too small html_header chunks
-    return html_header_splits, items_dict
+    return final_chunks, items_dict
 
 def test():
     with open("../../raptor/demo/manual.md", 'r', encoding='utf-8') as file:
@@ -89,14 +102,14 @@ def test():
         #("h3", "Header 3"),
     ]
 
-    html_header_splits = semantic_markdown_chunks(md_content, headers_to_split_on)
+    html_header_splits = semantic_markdown_chunks(md_content, headers_to_split_on, 300)
 
     for chunk in html_header_splits:
-        plain_text = html_to_plain_text(chunk.page_content)
+        plain_text = html_to_plain_text(chunk)
         print("ok")
 
     with open("../../raptor/demo/manual_chunked.txt", 'w', encoding='utf-8') as file:
-        file.write("\n\n\n".join([f"Chunk {index+1}:\n{html_to_plain_text(chunk.page_content)}" for index, chunk in enumerate(html_header_splits)]))
+        file.write("\n\n\n".join([f"Chunk {index+1}:\n{html_to_plain_text(chunk)}" for index, chunk in enumerate(html_header_splits)]))
     print("OK")
 
 if __name__ == "__main__":

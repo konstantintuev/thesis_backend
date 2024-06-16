@@ -6,7 +6,7 @@ import numpy as np
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from file_processing.document_processor.embeddings import embeddings_model
+from file_processing.document_processor.embeddings import embeddings_model, pending_embeddings_singleton
 from file_processing.document_processor.summarisation_utils import chunk_into_semantic_chapters
 
 if __name__ == "__main__":
@@ -229,6 +229,18 @@ class BGE3EmbeddingModel(BaseEmbeddingModel):
     def create_embeddings(self, texts: List[str]) -> List[List[float]]:
         return self.model.embed_documents(texts)
 
+class LangchainPendingEmbeddingModel(BaseEmbeddingModel):
+    def __init__(self):
+        pass
+
+    @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
+    def create_embedding(self, text):
+        return pending_embeddings_singleton.embed_documents([text])[0]
+
+    @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
+    def create_embeddings(self, texts: List[str]) -> List[List[float]]:
+        return pending_embeddings_singleton.embed_documents(texts)
+
 
 # Assuming the tree structure is already available as `tree`
 
@@ -254,7 +266,7 @@ def tree_to_dict(tree):
 # Initialize your custom models
 custom_summarizer = Summarizer("mixtral-8x7b-32768")
 custom_qa = CustomQAModel()
-custom_embedding = BGE3EmbeddingModel() #SBertEmbeddingModel(device="mps") #TogetherEmbeddingModel()
+custom_embedding = LangchainPendingEmbeddingModel()#BGE3EmbeddingModel() #SBertEmbeddingModel(device="mps") #TogetherEmbeddingModel()
 
 # Create a config with your custom models
 custom_config = RetrievalAugmentationConfig(

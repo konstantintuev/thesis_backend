@@ -1,6 +1,8 @@
 import os
+import re
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
+from urllib.parse import urlparse
 
 import fitz
 from llama_parse import LlamaParse
@@ -58,17 +60,32 @@ class PDFMetadata:
     def decode_pdf_date(self, date_str: str) -> datetime:
         if date_str.startswith('D:'):
             date_str = date_str[2:]
-        dt = datetime.strptime(date_str[:14], "%Y%m%d%H%M%S")
-        if len(date_str) > 14:
-            tz_sign = date_str[14]
-            tz_hours = int(date_str[15:17])
-            tz_minutes = int(date_str[18:20])
-            tz_offset = timedelta(hours=tz_hours, minutes=tz_minutes)
-            if tz_sign == '-':
-                dt -= tz_offset
-            elif tz_sign == '+':
-                dt += tz_offset
-        return dt
+
+        date_patterns = [
+            "%Y%m%d%H%M%S%z",  # D:YYYYMMDDHHmmSS+HH'mm'
+            "%Y%m%d%H%M%S",  # D:YYYYMMDDHHmmSS
+            "%Y%m%d%H%M",  # D:YYYYMMDDHHmm
+            "%Y%m%d%H",  # D:YYYYMMDDHH
+            "%Y%m%d",  # D:YYYYMMDD
+            "%Y%m",  # D:YYYYMM
+            "%Y",  # D:YYYY
+        ]
+
+        # Replace timezone offset format 'OHH'mm' with 'OHHmm' for strptime compatibility
+        date_str = re.sub(r"([+-]\d{2})'(\d{2})'", r"\1\2", date_str)
+
+        for pattern in date_patterns:
+            try:
+                if pattern.endswith('%z'):
+                    dt = datetime.strptime(date_str, pattern)
+                else:
+                    dt = datetime.strptime(date_str, pattern)
+                    dt = dt.replace(tzinfo=None)
+                return dt
+            except ValueError:
+                continue
+
+        return datetime.now()
 
     @classmethod
     def from_dict(cls, metadata: Dict[str, Any]) -> 'PDFMetadata':
@@ -186,3 +203,13 @@ llama_parser = LlamaParse(
     verbose=True,
     language="en",  # Optionally you can define a language, default=en
 )
+
+
+def get_filename_from_url(url):
+    # Parse the URL
+    parsed_url = urlparse(url)
+    # Extract the path from the parsed URL
+    path = parsed_url.path
+    # Get the filename from the path
+    filename = os.path.basename(path)
+    return filename

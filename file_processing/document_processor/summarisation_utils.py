@@ -47,7 +47,7 @@ def test_md_chunking():
     ]
 
     semantic_chapters = []
-    html_header_splits, uuid_items = semantic_markdown_chunks(md_content, headers_to_split_on)
+    html_header_splits, uuid_items = semantic_markdown_chunks(md_content, headers_to_split_on, 300)
     for chunk in html_header_splits:
         plain_text = html_to_plain_text(chunk.page_content)
         out = chunk_into_semantic_chapters(plain_text, uuid_items)
