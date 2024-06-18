@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
@@ -25,9 +26,11 @@ class SentenceTransformerEmbeddings(Embeddings):
         return self.model.encode(text, convert_to_tensor=False).tolist()
 
 
-def chunk_into_semantic_chapters(model: Embeddings, text: str, uuid_items: UUIDExtractedItemDict = {}) -> List[str]:
+def chunk_into_semantic_chapters(model: Embeddings, text: str, uuid_items: UUIDExtractedItemDict = {},
+                                 min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH")),
+                                 max_length: int = int(os.environ.get("MAX_CHUNK_LENGTH"))) -> List[str]:
     chunker = SemanticChunker(model)
-    return chunker.split_text(text, uuid_items)
+    return chunker.split_text(text, uuid_items, min_length, max_length)
 
 
 def test_semantic_chapter_chunking():

@@ -1,5 +1,6 @@
 """Experimental **text splitter** based on semantic similarity."""
 import copy
+import os
 import random
 import re
 from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Tuple, cast
@@ -11,6 +12,7 @@ from langchain_community.utils.math import (
 from langchain_core.documents import BaseDocumentTransformer, Document
 from langchain_core.embeddings import Embeddings
 
+from file_processing.document_processor.basic_text_processing_utils import concat_chunks
 from file_processing.document_processor.types import UUIDExtractedItemDict
 
 # Regex pattern for matching UUIDs
@@ -356,7 +358,9 @@ class SemanticChunker(BaseDocumentTransformer):
 
         return final_adjusted_sentences
 
-    def split_text(self, text: str, uuid_items: UUIDExtractedItemDict = {}, min_length: int = 300, max_length: int = 1500) -> List[str]:
+    def split_text(self, text: str, uuid_items: UUIDExtractedItemDict = {},
+                   min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH")),
+                   max_length: int = int(os.environ.get("MAX_CHUNK_LENGTH"))) -> List[str]:
         single_sentences_list = self.split_sentences(text, uuid_items, max_length)
 
         if len(single_sentences_list) == 1:
@@ -382,19 +386,7 @@ class SemanticChunker(BaseDocumentTransformer):
             start_index = index + 1
 
         # Merging small chunks measured by character count
-        final_chunks = []
-        current_chunk = chunks[0]
-
-        for chunk in chunks[1:]:
-            if len(current_chunk) < min_length:
-                current_chunk += " " + chunk
-            else:
-                final_chunks.append(current_chunk)
-                current_chunk = chunk
-
-        if current_chunk:
-            final_chunks.append(current_chunk)
-
+        final_chunks = concat_chunks(chunks, min_length, max_length)
         return final_chunks
 
     def create_documents(

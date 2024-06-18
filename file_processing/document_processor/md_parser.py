@@ -1,3 +1,4 @@
+import os
 import re
 import uuid
 from typing import Dict, Union
@@ -7,6 +8,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, HTMLHeaderTextS
 import markdown
 from bs4 import BeautifulSoup
 
+from file_processing.document_processor.basic_text_processing_utils import concat_chunks
 from file_processing.document_processor.types import ListItem, TableItem, ExtractedItemHtml, UUIDExtractedItemDict
 
 """The general idea is:
@@ -64,7 +66,7 @@ def html_to_plain_text(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     return soup.get_text()
 
-def semantic_markdown_chunks(md_content: str, headers_to_split_on: list, min_length: int) -> (list[str], UUIDExtractedItemDict):
+def semantic_markdown_chunks(md_content: str, headers_to_split_on: list, min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH"))) -> (list[str], UUIDExtractedItemDict):
     # Extract and replace tables first
     modified_content, tables_dict = extract_and_replace_tables(md_content)
 
@@ -77,20 +79,9 @@ def semantic_markdown_chunks(md_content: str, headers_to_split_on: list, min_len
 
     html_splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
     html_header_splits = html_splitter.split_text(modified_html)
+    chunks = [chunk.page_content for chunk in html_header_splits]
     # Merging small chunks measured by character count
-    final_chunks = []
-    current_chunk: str = html_header_splits[0].page_content
-
-    for chunk in html_header_splits[1:]:
-        if len(current_chunk) < min_length:
-            current_chunk += "\n" + chunk.page_content
-        else:
-            final_chunks.append(current_chunk)
-            current_chunk = chunk.page_content
-
-    if current_chunk:
-        final_chunks.append(current_chunk)
-    # TODO: Potentially, combine too small html_header chunks
+    final_chunks = concat_chunks(chunks, min_length, max_length=None)
     return final_chunks, items_dict
 
 def test():

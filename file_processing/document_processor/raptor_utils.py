@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from typing import List
 
@@ -79,7 +80,9 @@ MODELS = {
 
 class Summarizer(BaseSummarizationModel):
     def __init__(self, model_name):
-        self.summarizer_chat = ChatGroq(temperature=0, model_name=model_name, max_tokens=500)
+        self.summarizer_chat = ChatGroq(model_name=model_name, max_tokens=int(os.environ.get(
+            "TARGET_SUMMARY_LENGTH"
+        )))
         self.model_limits = MODELS[model_name]
         self.requests_made = 0
         self.tokens_generated = 0

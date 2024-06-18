@@ -21,6 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 import os
 import aiofiles
 
+from file_processing.document_processor.basic_text_processing_utils import concat_chunks
 from file_processing.document_processor.embeddings import PendingLangchainEmbeddings, embeddings_model, \
     pending_embeddings_singleton
 from file_processing.document_processor.md_parser import semantic_markdown_chunks, html_to_plain_text
@@ -117,7 +118,10 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     ]
 
     semantic_chapters: List[str] = []
-    html_header_splits, uuid_items = semantic_markdown_chunks(md_content, headers_to_split_on, 300)
+    html_header_splits, uuid_items = semantic_markdown_chunks(
+        md_content,
+        headers_to_split_on,
+        int(os.environ.get("MIN_CHUNK_LENGTH")))
 
     loop = asyncio.get_running_loop()
 
@@ -131,7 +135,9 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         semantic_chapters_raw = await asyncio.gather(*tasks)
         semantic_chapters = [chapter for sublist in semantic_chapters_raw for chapter in sublist]
 
-    ret.add_semantic_chapters(semantic_chapters)
+    semantic_chapters_concat = concat_chunks(semantic_chapters, int(os.environ.get("MIN_CHUNK_LENGTH")),
+                                             int(os.environ.get("MAX_CHUNK_LENGTH")))
+    ret.add_semantic_chapters(semantic_chapters_concat)
     # SAVE_PATH = "../raptor/demo/random"
     # ret.save(SAVE_PATH)
 
@@ -214,6 +220,8 @@ async def files_to_chunks(request):
 
             for_queue.append({"file_uuid": str(file_uuid), "file_path": temp_pdf_received, "mime_type": file_mime_type})
 
+        # TODO: limit files loaded in memory (66 page pdf is 9MBs of processed data and 2 MBs of pdf -> 0,1667 MB per Page)
+        # -> 10 GBs of ram is good for 60_000 pages of pdfs or 600 pdfs with 100 pages
         if upload_urls:
             for i in range(0, len(upload_urls)):
                 url = upload_urls[i]
