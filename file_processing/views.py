@@ -22,7 +22,7 @@ import os
 import aiofiles
 
 from file_processing.document_processor.basic_text_processing_utils import concat_chunks
-from file_processing.document_processor.embeddings import PendingLangchainEmbeddings, embeddings_model, \
+from file_processing.embeddings import PendingLangchainEmbeddings, embeddings_model, \
     pending_embeddings_singleton
 from file_processing.document_processor.md_parser import semantic_markdown_chunks, html_to_plain_text
 from file_processing.document_processor.pdf_utils import PDFMetadata, llama_parser, get_filename_from_url

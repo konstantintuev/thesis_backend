@@ -7,7 +7,7 @@ import numpy as np
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from file_processing.document_processor.embeddings import embeddings_model, pending_embeddings_singleton
+from file_processing.embeddings import embeddings_model, pending_embeddings_singleton
 from file_processing.document_processor.summarisation_utils import chunk_into_semantic_chapters
 
 if __name__ == "__main__":

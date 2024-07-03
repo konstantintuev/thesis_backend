@@ -2,7 +2,7 @@ import torch
 
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 
-from file_processing.document_processor.embeddings import embeddings_model
+from file_processing.embeddings import embeddings_model
 
 
 def main():

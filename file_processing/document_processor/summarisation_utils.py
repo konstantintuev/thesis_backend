@@ -6,7 +6,7 @@ from langchain_core.embeddings import Embeddings
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import pytorch_cos_sim
 
-from file_processing.document_processor.embeddings import embeddings_model
+from file_processing.embeddings import embeddings_model
 from file_processing.document_processor.md_parser import semantic_markdown_chunks, html_to_plain_text
 from file_processing.document_processor.semantic_text_splitter import SemanticChunker
 from file_processing.document_processor.types import UUIDExtractedItemDict
