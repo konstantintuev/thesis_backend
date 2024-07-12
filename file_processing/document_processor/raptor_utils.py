@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import uuid
 from typing import List
 
 import numpy as np
@@ -244,12 +245,10 @@ class LangchainPendingEmbeddingModel(BaseEmbeddingModel):
     def create_embeddings(self, texts: List[str]) -> List[List[float]]:
         return pending_embeddings_singleton.embed_documents(texts)
 
-
-# Assuming the tree structure is already available as `tree`
-
 def node_to_dict(node, layer):
     """Convert a tree node to a dictionary format for JSON."""
     node_dict = {
+        "id": f"{uuid.uuid4()}",
         "embedding": node.embeddings['EMB'],
         "text": node.text,
         "children": [child for child in node.children],
@@ -264,6 +263,9 @@ def tree_to_dict(tree):
     for layer, nodes in tree.layer_to_nodes.items():
         for node in nodes:
             all_nodes_dict[node.index] = node_to_dict(node, layer)
+    # Map children int keys to child UUIDs
+    for node in all_nodes_dict.values():
+        node["children"] = [all_nodes_dict[child_index]["id"] for child_index in node["children"]]
     return all_nodes_dict
 
 # Initialize your custom models
