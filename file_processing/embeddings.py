@@ -4,16 +4,38 @@ import uuid
 from collections import OrderedDict
 from typing import List
 
+from FlagEmbedding.bge_m3 import BGEM3FlagModel
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.embeddings import Embeddings
 
 model_name = "BAAI/bge-m3"
 
+
+class BGEM3Flag(Embeddings):
+    def __init__(self):
+        """
+        https://huggingface.co/BAAI/bge-m3
+        """
+        self.model = BGEM3FlagModel('BAAI/bge-m3',
+                                    use_fp16=True,
+                                    device='mps')
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """Embed search docs."""
+        return self.model.encode(texts, batch_size=12)['dense_vecs'].tolist()
+
+    def embed_query(self, text: str) -> List[float]:
+        """Embed query text."""
+        return self.model.encode(text, batch_size=12)['dense_vecs'].tolist()
+
+
 model_kwargs = {"device": "mps"}
 encode_kwargs = {"normalize_embeddings": True}
-embeddings_model = HuggingFaceBgeEmbeddings(
+embeddings_model = BGEM3Flag()
+
+"""HuggingFaceBgeEmbeddings(
     model_name=model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs
-)
+)"""
 
 """Inspired by: https://gist.github.com/aeroaks/ac4dbed9c184607a330c"""
 
