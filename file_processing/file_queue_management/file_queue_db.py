@@ -25,9 +25,6 @@ def create_sqlite_database():
     FOREIGN KEY (parent_queue) REFERENCES multiple_files_queue (multiple_files_uuid) ON DELETE SET NULL
 )""")
 
-
-create_sqlite_database()
-
 def add_multiple_files_to_queue(file_list: List[Dict[str, str]]) -> str:
     with connection.cursor() as cursor:
         multiple_files_uuid = str(uuid.uuid4())
@@ -51,12 +48,25 @@ def add_file_to_queue(parent_queue_uuid: str or None, file_uuid: str, file_path:
 def get_file_from_queue(file_uuid: str) -> dict or None:
     with connection.cursor() as cursor:
         cursor.execute("SELECT * FROM file_queue WHERE file_uuid = %s", [file_uuid])
-        res = cursor.fetchone()
-        if res and res[1] == 'done':
-            return dict(res)
+        file_queue_item = cursor.fetchone()
+        if file_queue_item and file_queue_item[1] == 'done':
+            return {"file_uuid": file_queue_item[0],
+                    "status": file_queue_item[1],
+                    "result": json.loads(file_queue_item[2])}
         else:
             return None
 
+def get_all_files_queue() -> dict:
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT file_uuid, status, result FROM file_queue")
+        res = cursor.fetchall()
+        if res and all(file_queue_item[1] == 'done' for file_queue_item in res):
+            return {"files": [{"file_uuid": file_queue_item[0],
+                               "status": file_queue_item[1],
+                               "result": json.loads(file_queue_item[2])}
+                    for file_queue_item in res]}
+        else:
+            return {"status": "pending"}
 
 def set_file_status(file_uuid: str, status: str, result: str) -> str:
     with connection.cursor() as cursor:
