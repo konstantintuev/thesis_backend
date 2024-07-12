@@ -13,7 +13,7 @@ from langchain_core.documents import BaseDocumentTransformer, Document
 from langchain_core.embeddings import Embeddings
 
 from file_processing.document_processor.basic_text_processing_utils import concat_chunks
-from file_processing.document_processor.types import UUIDExtractedItemDict
+from file_processing.document_processor.types_local import UUIDExtractedItemDict
 
 # Regex pattern for matching UUIDs
 uuid_pattern = re.compile(

@@ -9,7 +9,7 @@ import markdown
 from bs4 import BeautifulSoup
 
 from file_processing.document_processor.basic_text_processing_utils import concat_chunks
-from file_processing.document_processor.types import ListItem, TableItem, ExtractedItemHtml, UUIDExtractedItemDict
+from file_processing.document_processor.types_local import ListItem, TableItem, ExtractedItemHtml, UUIDExtractedItemDict
 
 """The general idea is:
  1. Extract useful text data like tables and lists from Markdown
