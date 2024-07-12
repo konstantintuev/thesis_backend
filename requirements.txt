@@ -60,3 +60,14 @@ SQLAlchemy
 sqlparse
 tenacity
 umap-learn
+tiktoken
+scipy
+torch
+transformers
+scikit-learn
+tqdm
+python-magic
+RAGatouille
+Markdown
+beautifulsoup4
+pypandoc

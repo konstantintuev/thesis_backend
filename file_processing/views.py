@@ -22,6 +22,7 @@ import os
 import aiofiles
 
 from file_processing.document_processor.basic_text_processing_utils import concat_chunks
+from file_processing.document_processor.colbert_utils import test_colbert, add_documents_to_index, search_colbert_index
 from file_processing.embeddings import PendingLangchainEmbeddings, embeddings_model, \
     pending_embeddings_singleton
 from file_processing.document_processor.md_parser import semantic_markdown_chunks, html_to_plain_text
@@ -148,6 +149,7 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         "metadata": pdf_metadata.to_dict(),
         "uuid_items": uuid_items
     }
+    add_documents_to_index([out])
 
     # Convert the dictionary to JSON
     out_json = json.dumps(out, indent=4)
@@ -302,6 +304,30 @@ async def generate_embeddings(request):
             }
 
             return JsonResponse(response)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+@csrf_exempt
+@async_to_sync
+async def search_query(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            query_text = data.get('query', None)
+            high_level_summary = data.get('high_level_summary', None)
+            if query_text is None:
+                return JsonResponse({"error": "Query not provided!"}, status=400)
+
+            res = search_colbert_index(query_text, high_level_summary)
+            return JsonResponse(res,
+                                status=(200 if isinstance(res, list) or res["error"] is None else 400),
+                                # 'Safe' serialises only dicts and we have a list here
+                                safe=False)
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON"}, status=400)
         except Exception as e:
