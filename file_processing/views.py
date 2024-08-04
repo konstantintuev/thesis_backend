@@ -23,10 +23,11 @@ import aiofiles
 
 from file_processing.document_processor.basic_text_processing_utils import concat_chunks
 from file_processing.document_processor.colbert_utils import test_colbert, add_documents_to_index, search_colbert_index
+from file_processing.document_processor.pdf_parsers import pdf_to_md
 from file_processing.embeddings import PendingLangchainEmbeddings, embeddings_model, \
     pending_embeddings_singleton
 from file_processing.document_processor.md_parser import semantic_markdown_chunks, html_to_plain_text
-from file_processing.document_processor.pdf_utils import PDFMetadata, llama_parser, get_filename_from_url
+from file_processing.document_processor.pdf_utils import PDFMetadata, get_filename_from_url
 from file_processing.document_processor.summarisation_utils import chunk_into_semantic_chapters
 from file_processing.document_processor.raptor_utils import custom_config, tree_to_dict
 from file_processing.file_queue_management.file_queue_db import add_file_to_queue, get_file_from_queue, set_file_status, \
@@ -94,24 +95,10 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     # tree_json = json.dumps(tree_dict, indent=4)
 
     # return HttpResponse(tree_json, content_type="application/json")
-    documents = await llama_parser.aload_data(temp_pdf_received)
-    """with open("raptor/demo/cs_paper.md", 'r', encoding='utf-8') as test_file:
-        test_file_content = test_file.read()
-
-    class PDFDocument:
-        def __init__(self, text):
-           self.text = text
-    documents = [
-      PDFDocument(test_file_content)
-    ]"""
-    if documents is None or len(documents) == 0:
-        return HttpResponse('Invalid request')
-    document = documents[0]
-
     # Extract document information
     pdf_metadata = PDFMetadata.from_pymupdf(file_name, temp_pdf_received)
 
-    md_content = document.text
+    md_content = pdf_to_md(temp_pdf_received)
     headers_to_split_on = [
         ("h1", "Header 1"),
         # ("h2", "Header 2"),
@@ -147,7 +134,8 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     out = {
         "tree": tree_dict,
         "metadata": pdf_metadata.to_dict(),
-        "uuid_items": uuid_items
+        "uuid_items": uuid_items,
+        "file_uuid": str(file_uuid)
     }
     add_documents_to_index([out])
 

@@ -71,3 +71,8 @@ RAGatouille
 Markdown
 beautifulsoup4
 pypandoc
+FlagEmbedding
+unstructured
+gptpdf
+pymupdf4llm
+azure-ai-documentintelligence

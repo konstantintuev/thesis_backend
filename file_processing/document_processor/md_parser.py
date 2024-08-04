@@ -79,7 +79,7 @@ def semantic_markdown_chunks(md_content: str, headers_to_split_on: list, min_len
 
     html_splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
     html_header_splits = html_splitter.split_text(modified_html)
-    chunks = [chunk.page_content for chunk in html_header_splits]
+    chunks = [f"# {chunk.metadata.get('Header 1')}\n\n{chunk.page_content}" for chunk in html_header_splits]
     # Merging small chunks measured by character count
     final_chunks = concat_chunks(chunks, min_length, max_length=None)
     return final_chunks, items_dict

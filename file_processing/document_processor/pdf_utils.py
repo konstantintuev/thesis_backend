@@ -1,7 +1,7 @@
 import os
 import re
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, List
 from urllib.parse import urlparse
 
 import fitz
@@ -213,3 +213,27 @@ def get_filename_from_url(url):
     # Get the filename from the path
     filename = os.path.basename(path)
     return filename
+
+
+def split_pdf(input_pdf_path: str, output_folder: str, pages_per_file: int = 1) -> List[Tuple[str, int, int]]:
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    pdf_document = fitz.open(input_pdf_path)
+    split_files = []
+
+    for start_page in range(0, len(pdf_document), pages_per_file):
+        pdf_writer = fitz.open()
+        end_page = min(start_page + pages_per_file, len(pdf_document))
+        pdf_writer.insert_pdf(pdf_document, from_page=start_page, to_page=end_page - 1)
+
+        output_pdf_path = f"{output_folder}/pages_{start_page + 1}_to_{end_page}.pdf"
+        pdf_writer.save(output_pdf_path)
+        pdf_writer.close()
+        split_files.append((output_pdf_path, start_page+1, end_page))
+
+    print(
+        f"PDF split into {len(split_files)} files with up to {pages_per_file} pages each and saved in {output_folder}.")
+    pdf_document.close()
+
+    return split_files
