@@ -1,28 +1,56 @@
 import os
 from typing import List
+import re
 
 from ragatouille import RAGPretrainedModel
 from FlagEmbedding import LayerWiseFlagLLMReranker
 from operator import itemgetter
 
+from file_processing.document_processor.semantic_text_splitter import uuid_pattern
+from file_processing.document_processor.types_local import UUIDExtractedItemDict
 from file_processing.file_queue_management.file_queue_db import get_file_from_queue, get_all_files_queue
 
 
 def test_colbert():
     # 2312.05934v3.pdf
     file_data = get_all_files_queue()["files"]
+    file_data["tree"] = file_data["result"]["tree"]
+    file_data["result"] = None
     add_documents_to_index(file_data)
+
 
 index_path = ".ragatouille/colbert/indexes/default"
 colbert_model: RAGPretrainedModel = (
     RAGPretrainedModel.from_index(index_path)
     if os.path.exists(index_path)
-        else RAGPretrainedModel.from_pretrained("jinaai/jina-colbert-v1-en")
+    else RAGPretrainedModel.from_pretrained("jinaai/jina-colbert-v1-en")
 )
+
 
 def initialise_search_component():
     search_colbert_index("Initialise the search component")
     pass
+
+
+def add_uuid_object_to_string(match, uuid_items: UUIDExtractedItemDict):
+    # Get the matched UUID
+    uuid = match.group(0)
+    # Check if the UUID exists in the uuid_items and return its string representation
+    if uuid in uuid_items:
+        item = uuid_items[uuid]
+        if item['type'] == 'ul':
+            list_marker = '*'
+            list_string = '\n'.join([f'{list_marker} {child}' for child in item['children']])
+            return '\n' + list_string
+        elif item['type'] == 'li':
+            list_string = '\n'.join([f'{i + 1}. {child}' for i, child in enumerate(item['children'])])
+            return '\n' + list_string
+        elif item['type'] == 'table':
+            return '\n' + item["content"]
+        else:
+            return uuid
+    return uuid
+
 
 """
 Expected input structure:
@@ -35,24 +63,28 @@ files = {
             "layer": layer
         },
         "metadata": pdf_metadata.to_dict(),
-        "uuid_items": uuid_items
+        "uuid_items": UUIDExtractedItemDict
     }
 """
+
+
 def add_documents_to_index(files: List[dict]):
-    document_collection = [node["text"]
+    document_collection = [re.sub(uuid_pattern,
+                                  lambda match: add_uuid_object_to_string(match, file_data["uuid_items"]),
+                                  node["text"])  #node["text"]
                            for file_data in files
-                            # Values of dict in python are ORDERED
-                            for node in file_data["result"]["tree"].values()]
+                           # Values of dict in python are ORDERED
+                           for node in file_data["tree"].values()]
     document_ids = [node['id']
                     for file_data in files
-                        # Values of dict in python are ORDERED
-                        for node in file_data["result"]["tree"].values()]
+                    # Values of dict in python are ORDERED
+                    for node in file_data["tree"].values()]
     document_metadatas = [{"doc_id": file_data['file_uuid'],
                            "chunk_id": node["id"],
                            "children": node["children"],
                            "layer": node["layer"]}
                           for file_data in files
-                            for node in file_data["result"]["tree"].values()]
+                          for node in file_data["tree"].values()]
     index_path = ".ragatouille/colbert/indexes/default"
 
     if not os.path.exists(index_path):
@@ -74,6 +106,7 @@ def add_documents_to_index(files: List[dict]):
             split_documents=False,
         )
 
+
 """
 Reranker proved to have marginal improvement at best at the cost of 2 mins per query
 Keeping the code here if better research comes out, but disabled for now
@@ -82,6 +115,7 @@ reranker = LayerWiseFlagLLMReranker('BAAI/bge-reranker-v2-minicpm-layerwise',
                         use_fp16=True,
                         device='mps')
 """
+
 
 def search_colbert_index(query: str, high_level_summary: str = None) -> dict or None:
     if not os.path.exists(index_path):
@@ -136,7 +170,7 @@ def search_colbert_index(query: str, high_level_summary: str = None) -> dict or 
 
     reranked = [{
         # "content": chunk["content"],
-        "score": chunk["score"],
+        "score": chunk["score"] / 100,
         "rank": chunk["rank"],
         # "rerank_score": rerank_score[index],
         "passage_id": chunk["passage_id"],
