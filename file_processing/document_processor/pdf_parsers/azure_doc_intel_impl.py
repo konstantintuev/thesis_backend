@@ -161,6 +161,8 @@ class AzureDocIntelTPS:
             rect_images = []
             rects = self._parse_rects(page)
             for index, rect in enumerate(rects):
+                # My own better logic for text boxes below (above and length aware
+                #   instead of below and not length aware)
                 fitz_rect = fitz.Rect(rect)
                 # 保存页面为图片
                 pix = page.get_pixmap(clip=fitz_rect, matrix=fitz.Matrix(4, 4))
@@ -284,6 +286,7 @@ class AzureDocIntelTPS:
         md_output = ""
         analysis_features = ["ocrHighResolution", "formulas"]
         for split_pdf_path in split_pdf_paths:
+            self._wait_if_needed()
             # Create a temp dir into which we split the pdf - this way we honor the max pages requirement
             loader = AzureAIDocumentIntelligenceLoader(
                 api_endpoint=os.environ.get("AZURE_DOC_INTEL_ENDPOINT"),

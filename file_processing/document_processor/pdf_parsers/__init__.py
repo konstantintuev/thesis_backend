@@ -17,6 +17,7 @@ def pdf_to_md(pdf_filepath: str,
         elif how_good == 3:
             return pdf_to_md_pdf_miner(pdf_filepath)
     else:
+        # TODO: add Azure Doc Intelligence + GPT 4o
         if how_good == 1:
             return pdf_to_md_gpt4o(pdf_filepath)
         elif how_good == 2:

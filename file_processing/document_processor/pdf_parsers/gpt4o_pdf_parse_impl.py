@@ -7,6 +7,7 @@ from gptpdf import parse_pdf
 
 
 def pdf_to_md_gpt4o(pdf_filepath: str) -> str | None:
+    # Prompt translated from gptpdf generally
     prompt = {
         "prompt": (
             "Use markdown syntax to convert the text recognised in the image to markdown format for output. You must do:\n"
@@ -23,7 +24,7 @@ def pdf_to_md_gpt4o(pdf_filepath: str) -> str | None:
     content, image_paths = parse_pdf(
         pdf_path=pdf_filepath,
         output_dir=os.path.join(temp_dir, f'{uuid.uuid4()}'),
-        model=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),
+        model=f'azure_{os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME")}',
         prompt=prompt,
         verbose=False,
         gpt_worker=3,

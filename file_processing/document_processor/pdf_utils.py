@@ -215,7 +215,25 @@ def get_filename_from_url(url):
     return filename
 
 
-def split_pdf(input_pdf_path: str, output_folder: str, pages_per_file: int = 1) -> List[Tuple[str, int, int]]:
+class SplitPDFOutput:
+    split_pdf_path: str
+    from_original_start_page: int
+    from_original_end_page: int
+    screenshots_per_page: List[str]
+
+    def __init__(self, split_pdf_path: str, from_original_start_page: int, from_original_end_page: int,
+                 screenshots_per_page: List[str]):
+        super().__init__()
+        self.split_pdf_path = split_pdf_path
+        self.from_original_start_page = from_original_start_page
+        self.from_original_end_page = from_original_end_page
+        self.screenshots_per_page = screenshots_per_page
+
+
+def split_pdf(input_pdf_path: str,
+              output_folder: str,
+              pages_per_file: int = 1,
+              page_screenshots: bool = False) -> List[SplitPDFOutput]:
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -227,13 +245,28 @@ def split_pdf(input_pdf_path: str, output_folder: str, pages_per_file: int = 1) 
         end_page = min(start_page + pages_per_file, len(pdf_document))
         pdf_writer.insert_pdf(pdf_document, from_page=start_page, to_page=end_page - 1)
 
+        page_screenshots = []
+
         output_pdf_path = f"{output_folder}/pages_{start_page + 1}_to_{end_page}.pdf"
         pdf_writer.save(output_pdf_path)
+        # save each page to the same folder
+        for page_index in range(start_page, end_page):
+            page = pdf_document.load_page(page_index)
+            zoom = 3
+
+            # Define the transformation matrix for zoom
+            mat = fitz.Matrix(zoom, zoom)
+
+            # Render the page to a pixmap (image)
+            pix = page.get_pixmap(matrix=mat)
+            screenshot_output_path = f'{output_folder}/page_{page_index + 1}.png'
+            pix.save(screenshot_output_path)
+            page_screenshots.append(screenshot_output_path)
         pdf_writer.close()
-        split_files.append((output_pdf_path, start_page+1, end_page))
+        split_files.append(SplitPDFOutput(output_pdf_path, start_page+1, end_page, page_screenshots))
 
     print(
-        f"PDF split into {len(split_files)} files with up to {pages_per_file} pages each and saved in {output_folder}.")
+        f"PDF split into {len(split_files)} files with up to {pages_per_file} pages each{' + page screenshots' if page_screenshots else ''} and saved in {output_folder}.")
     pdf_document.close()
 
     return split_files

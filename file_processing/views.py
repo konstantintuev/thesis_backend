@@ -98,7 +98,7 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     # Extract document information
     pdf_metadata = PDFMetadata.from_pymupdf(file_name, temp_pdf_received)
 
-    md_content = pdf_to_md(temp_pdf_received)
+    md_content = pdf_to_md(temp_pdf_received, how_good=3)
     headers_to_split_on = [
         ("h1", "Header 1"),
         # ("h2", "Header 2"),
