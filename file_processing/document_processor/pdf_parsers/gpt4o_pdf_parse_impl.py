@@ -1,12 +1,35 @@
+import base64
 import logging
+
+from langchain_core.messages import SystemMessage, HumanMessage
+
+from file_processing.document_processor.md_parser import extract_code_blocks
+from file_processing.document_processor.pdf_utils import split_pdf
+
+if __name__ == '__main__':
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    logging.basicConfig(level=logging.DEBUG)
+
+
 import os
 import tempfile
 import uuid
+from typing import List
 
-from gptpdf import parse_pdf
+from langchain_openai import AzureChatOpenAI
 
+from file_processing.document_processor.pdf_parsers import PdfToMdPageInfo
 
-def pdf_to_md_gpt4o(pdf_filepath: str) -> str | None:
+model = AzureChatOpenAI(
+    openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
+    azure_deployment=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),
+    azure_endpoint=os.environ.get("AZURE_GPT_4o_ENDPOINT"),
+    openai_api_key=os.environ.get("AZURE_GPT_4o_API_KEY"),
+)
+
+def pdf_to_md_gpt4o(pdf_filepath: str) -> List[PdfToMdPageInfo]:
     # Prompt translated from gptpdf generally
     prompt = {
         "prompt": (
@@ -20,18 +43,44 @@ def pdf_to_md_gpt4o(pdf_filepath: str) -> str | None:
     }
 
     temp_dir = tempfile.mkdtemp()
+    output_dir = os.path.join(temp_dir, f'{uuid.uuid4()}')
 
-    content, image_paths = parse_pdf(
-        pdf_path=pdf_filepath,
-        output_dir=os.path.join(temp_dir, f'{uuid.uuid4()}'),
-        model=f'azure_{os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME")}',
-        prompt=prompt,
-        verbose=False,
-        gpt_worker=3,
-        api_key=os.environ.get("AZURE_GPT_4o_API_KEY"),
-        base_url=os.environ.get("AZURE_GPT_4o_ENDPOINT"),
-    )
-    return content
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    split_pdf_paths = split_pdf(pdf_filepath,
+                                output_dir,
+                                1,
+                                True,
+                                False)
+    pages_out = []
+    for split_pdf_path in split_pdf_paths:
+        # Create a temp dir into which we split the pdf - this way we honor the max pages requirement
+        # Just the first screenshot as we split page by page
+        with open(split_pdf_path.screenshots_per_page[0], "rb") as screenshot:
+            image_data = base64.b64encode(screenshot.read()).decode("utf-8")
+        system = SystemMessage(
+            content=prompt.get("role_prompt"))
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": prompt.get("prompt")},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
+                },
+            ],
+        )
+        response = model.invoke([system, message])
+
+        parsed_md_content = extract_code_blocks("markdown", response.content)
+        pages_out.append(PdfToMdPageInfo(
+            split_pdf_path.from_original_start_page,
+            "",
+            parsed_md_content[0],
+            "",
+            split_pdf_path.screenshots_per_page[0]
+        ))
+    return pages_out
 
 if __name__ == '__main__':
     from dotenv import load_dotenv

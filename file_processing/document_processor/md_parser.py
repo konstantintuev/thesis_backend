@@ -1,7 +1,7 @@
 import os
 import re
 import uuid
-from typing import Dict, Union
+from typing import Dict, Union, List
 
 from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter, HTMLHeaderTextSplitter
@@ -16,9 +16,20 @@ from file_processing.document_processor.types_local import ListItem, TableItem, 
  2. Preliminary chunk based on main headings.
 """
 
+
 def markdown_to_html(md_content):
     # Convert markdown to HTML
     return markdown.markdown(md_content)
+
+
+def extract_code_blocks(code_block_language: str, markdown_text: str) -> List[str]:
+    # Define the regex pattern to find code blocks of the specified language
+    pattern = rf'```{code_block_language}(.*?)```'
+    # Find all matches in the markdown text
+    code_blocks = re.findall(pattern, markdown_text, re.DOTALL)
+    if (code_blocks is None or len(code_blocks) == 0) and code_block_language == 'markdown':
+        return [markdown_text]
+    return code_blocks
 
 
 def extract_and_replace_lists(html_content) -> (str, UUIDExtractedItemDict):
@@ -66,7 +77,10 @@ def html_to_plain_text(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     return soup.get_text()
 
-def semantic_markdown_chunks(md_content: str, headers_to_split_on: list, min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH"))) -> (list[str], UUIDExtractedItemDict):
+
+def semantic_markdown_chunks(md_content: str, headers_to_split_on: list,
+                             min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH"))) -> (
+list[str], UUIDExtractedItemDict):
     # Extract and replace tables first
     modified_content, tables_dict = extract_and_replace_tables(md_content)
 
@@ -84,6 +98,7 @@ def semantic_markdown_chunks(md_content: str, headers_to_split_on: list, min_len
     final_chunks = concat_chunks(chunks, min_length, max_length=None)
     return final_chunks, items_dict
 
+
 def test():
     with open("../../raptor/demo/manual.md", 'r', encoding='utf-8') as file:
         md_content = file.read()
@@ -100,8 +115,10 @@ def test():
         print("ok")
 
     with open("../../raptor/demo/manual_chunked.txt", 'w', encoding='utf-8') as file:
-        file.write("\n\n\n".join([f"Chunk {index+1}:\n{html_to_plain_text(chunk)}" for index, chunk in enumerate(html_header_splits)]))
+        file.write("\n\n\n".join(
+            [f"Chunk {index + 1}:\n{html_to_plain_text(chunk)}" for index, chunk in enumerate(html_header_splits)]))
     print("OK")
+
 
 if __name__ == "__main__":
     test()

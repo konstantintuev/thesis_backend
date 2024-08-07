@@ -233,7 +233,8 @@ class SplitPDFOutput:
 def split_pdf(input_pdf_path: str,
               output_folder: str,
               pages_per_file: int = 1,
-              page_screenshots: bool = False) -> List[SplitPDFOutput]:
+              page_screenshots: bool = False,
+              only_screenshots: bool = False) -> List[SplitPDFOutput]:
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -243,30 +244,58 @@ def split_pdf(input_pdf_path: str,
     for start_page in range(0, len(pdf_document), pages_per_file):
         pdf_writer = fitz.open()
         end_page = min(start_page + pages_per_file, len(pdf_document))
-        pdf_writer.insert_pdf(pdf_document, from_page=start_page, to_page=end_page - 1)
+        page_screenshots_list = []
+        output_pdf_path = ""
 
-        page_screenshots = []
+        if not only_screenshots:
+            pdf_writer.insert_pdf(pdf_document, from_page=start_page, to_page=end_page - 1)
 
-        output_pdf_path = f"{output_folder}/pages_{start_page + 1}_to_{end_page}.pdf"
-        pdf_writer.save(output_pdf_path)
-        # save each page to the same folder
-        for page_index in range(start_page, end_page):
-            page = pdf_document.load_page(page_index)
-            zoom = 3
+            output_pdf_path = f"{output_folder}/pages_{start_page + 1}_to_{end_page}.pdf"
+            pdf_writer.save(output_pdf_path)
+        if page_screenshots:
+            # Save each page to the same folder
+            for page_index in range(start_page, end_page):
+                page = pdf_document.load_page(page_index)
 
-            # Define the transformation matrix for zoom
-            mat = fitz.Matrix(zoom, zoom)
+                original_size = page.mediabox
+                min_size = 900
+                max_size = 1800
 
-            # Render the page to a pixmap (image)
-            pix = page.get_pixmap(matrix=mat)
-            screenshot_output_path = f'{output_folder}/page_{page_index + 1}.png'
-            pix.save(screenshot_output_path)
-            page_screenshots.append(screenshot_output_path)
+                if max(original_size.width, original_size.height) > max_size:
+                    # Zoom to bring down to max_size
+                    zoom = max_size / max(original_size.width, original_size.height)
+                elif min(original_size.width, original_size.height) < min_size:
+                    # Zoom to bring up to min_size
+                    zoom = min_size / min(original_size.width, original_size.height)
+                else:
+                    zoom = 1
+
+                # Define the transformation matrix for zoom
+                mat = fitz.Matrix(zoom, zoom)
+
+                # Render the page to a pixmap (image)
+                pix = page.get_pixmap(matrix=mat)
+                screenshot_output_path = f'{output_folder}/page_{page_index + 1}.png'
+                pix.save(screenshot_output_path)
+                page_screenshots_list.append(screenshot_output_path)
         pdf_writer.close()
-        split_files.append(SplitPDFOutput(output_pdf_path, start_page+1, end_page, page_screenshots))
-
+        split_files.append(SplitPDFOutput(output_pdf_path, start_page + 1, end_page, page_screenshots_list))
     print(
         f"PDF split into {len(split_files)} files with up to {pages_per_file} pages each{' + page screenshots' if page_screenshots else ''} and saved in {output_folder}.")
     pdf_document.close()
 
     return split_files
+
+if __name__ == '__main__':
+    import argparse
+    import tempfile
+    import uuid
+
+    parser = argparse.ArgumentParser(description='PDF Split')
+    parser.add_argument('input_pdf', type=str, help='Path to the input PDF file.')
+    args = parser.parse_args()
+
+    temp_dir = tempfile.mkdtemp()
+    out_dir = os.path.join(temp_dir, f'{uuid.uuid4()}')
+
+    print(split_pdf(args.input_pdf, output_folder=out_dir, page_screenshots_list=True))

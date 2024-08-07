@@ -9,11 +9,15 @@
 """
 
 import logging
+
 if __name__ == '__main__':
     from dotenv import load_dotenv
 
     load_dotenv()
     logging.basicConfig(level=logging.DEBUG)
+
+from file_processing.document_processor.md_parser import extract_code_blocks
+from file_processing.document_processor.pdf_parsers import PdfToMdPageInfo
 
 import base64
 import os
@@ -40,21 +44,6 @@ import concurrent.futures
 from langchain_community.document_loaders import AzureAIDocumentIntelligenceLoader
 
 from file_processing.document_processor.pdf_utils import split_pdf
-
-class AzureDocIntelGPT4oCollabPage:
-    original_page_index: int
-    raw_md_content: str
-    fixed_md_content: str
-    fix_log: str
-    page_screenshot_path: str
-
-    def __init__(self, original_page_index: int, raw_md_content: str, fixed_md_content: str, fix_log: str, page_screenshot_path: str):
-        super().__init__()
-        self.original_page_index = original_page_index
-        self.raw_md_content = raw_md_content
-        self.fixed_md_content = fixed_md_content
-        self.fix_log = fix_log
-        self.page_screenshot_path = page_screenshot_path
 
 
 class AzureDocAndGptTPS:
@@ -170,14 +159,7 @@ class AzureDocAndGptTPS:
     **Your task is to follow these instructions precisely, ensuring accurate and clean markdown output along with a detailed JSON log.**
     """
 
-    def extract_code_blocks(self, code_block_language: str, markdown_text: str):
-        # Define the regex pattern to find code blocks of the specified language
-        pattern = rf'```{code_block_language}(.*?)```'
-        # Find all matches in the markdown text
-        code_blocks = re.findall(pattern, markdown_text, re.DOTALL)
-        return code_blocks
-
-    def pdf_to_md_azure_doc_intel_pdfs(self, pdf_filepath: str, output_dir: str) -> List[AzureDocIntelGPT4oCollabPage]:
+    def pdf_to_md_azure_doc_intel_pdfs(self, pdf_filepath: str, output_dir: str) -> List[PdfToMdPageInfo]:
         self._wait_if_needed()
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -186,8 +168,6 @@ class AzureDocAndGptTPS:
                                     output_dir,
                                     1,
                                     True)
-        md_output_raw = ""
-        md_output_fixed = ""
         pages_out = []
         analysis_features = ["ocrHighResolution", "formulas"]
         for split_pdf_path in split_pdf_paths:
@@ -205,7 +185,6 @@ class AzureDocAndGptTPS:
             documents = loader.load()
             for document in documents:
                 raw_page_md_content += document.page_content + "\n\n"
-            md_output_raw += raw_page_md_content
             # Just the first screenshot as we split page by page
             with open(split_pdf_path.screenshots_per_page[0], "rb") as screenshot:
                 image_data = base64.b64encode(screenshot.read()).decode("utf-8")
@@ -222,9 +201,9 @@ class AzureDocAndGptTPS:
             )
             response = self.model.invoke([system, message])
 
-            parsed_md_content = self.extract_code_blocks("markdown", response.content)
-            parsed_json_log = self.extract_code_blocks("json", response.content)
-            pages_out.append(AzureDocIntelGPT4oCollabPage(
+            parsed_md_content = extract_code_blocks("markdown", response.content)
+            parsed_json_log = extract_code_blocks("json", response.content)
+            pages_out.append(PdfToMdPageInfo(
                 split_pdf_path.from_original_start_page,
                 raw_page_md_content,
                 parsed_md_content[0],
