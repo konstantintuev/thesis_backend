@@ -5,13 +5,13 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from file_processing.document_processor.md_parser import extract_code_blocks
 from file_processing.document_processor.pdf_utils import split_pdf
+from file_processing.storage_manager import global_temp_dir
 
 if __name__ == '__main__':
     from dotenv import load_dotenv
 
     load_dotenv()
     logging.basicConfig(level=logging.DEBUG)
-
 
 import os
 import tempfile
@@ -20,7 +20,7 @@ from typing import List
 
 from langchain_openai import AzureChatOpenAI
 
-from file_processing.document_processor.pdf_parsers import PdfToMdPageInfo
+from file_processing.document_processor.pdf_parsers import PdfToMdPageInfo, PdfToMdDocument
 
 model = AzureChatOpenAI(
     openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
@@ -29,7 +29,8 @@ model = AzureChatOpenAI(
     openai_api_key=os.environ.get("AZURE_GPT_4o_API_KEY"),
 )
 
-def pdf_to_md_gpt4o(pdf_filepath: str) -> List[PdfToMdPageInfo]:
+
+def pdf_to_md_gpt4o(pdf_filepath: str, output_dir: str) -> PdfToMdDocument:
     # Prompt translated from gptpdf generally
     prompt = {
         "prompt": (
@@ -41,10 +42,6 @@ def pdf_to_md_gpt4o(pdf_filepath: str) -> List[PdfToMdPageInfo]:
         "rect_prompt": "The picture has areas marked out with red boxes and names (%s). If the regions are tables or pictures, use the ! []() form to insert it into the output, otherwise output the text content directly.",
         "role_prompt": "You are a PDF document parser that outputs the content of images using markdown and latex syntax."
     }
-
-    temp_dir = tempfile.mkdtemp()
-    output_dir = os.path.join(temp_dir, f'{uuid.uuid4()}')
-
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -53,7 +50,7 @@ def pdf_to_md_gpt4o(pdf_filepath: str) -> List[PdfToMdPageInfo]:
                                 1,
                                 True,
                                 False)
-    pages_out = []
+    pages_out = PdfToMdDocument()
     for split_pdf_path in split_pdf_paths:
         # Create a temp dir into which we split the pdf - this way we honor the max pages requirement
         # Just the first screenshot as we split page by page
@@ -66,7 +63,7 @@ def pdf_to_md_gpt4o(pdf_filepath: str) -> List[PdfToMdPageInfo]:
                 {"type": "text", "text": prompt.get("prompt")},
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
+                    "image_url": {"url": f"data:image/png;base64,{image_data}"},
                 },
             ],
         )
@@ -75,12 +72,13 @@ def pdf_to_md_gpt4o(pdf_filepath: str) -> List[PdfToMdPageInfo]:
         parsed_md_content = extract_code_blocks("markdown", response.content)
         pages_out.append(PdfToMdPageInfo(
             split_pdf_path.from_original_start_page,
-            "",
             parsed_md_content[0],
+            "",
             "",
             split_pdf_path.screenshots_per_page[0]
         ))
     return pages_out
+
 
 if __name__ == '__main__':
     from dotenv import load_dotenv
