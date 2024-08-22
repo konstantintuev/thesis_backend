@@ -19,7 +19,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
 from file_processing.document_processor.md_parser import extract_code_blocks
-from file_processing.document_processor.pdf_parsers import PdfToMdPageInfo, PdfToMdDocument
+from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 
 import base64
 import os

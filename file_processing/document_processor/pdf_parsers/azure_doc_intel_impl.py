@@ -10,7 +10,7 @@ import re
 from typing import List, Tuple, Optional, Dict
 import logging
 
-from file_processing.document_processor.pdf_parsers import PdfToMdPageInfo, PdfToMdDocument
+from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 from file_processing.storage_manager import global_temp_dir
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

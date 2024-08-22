@@ -5,7 +5,7 @@ from typing import List
 from langchain_community.document_loaders import PDFMinerPDFasHTMLLoader
 import pymupdf4llm
 
-from file_processing.document_processor.pdf_parsers import PdfToMdPageInfo, PdfToMdDocument
+from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 from file_processing.document_processor.pdf_utils import split_pdf
 
 

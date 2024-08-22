@@ -1,15 +1,14 @@
 import os
-from typing import List
 
 from llama_parse import LlamaParse
 
-from file_processing.document_processor.pdf_parsers import PdfToMdPageInfo, PdfToMdDocument
+from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 from file_processing.document_processor.pdf_utils import split_pdf
 
 llama_parser = LlamaParse(
     # can also be set in your env as LLAMA_CLOUD_API_KEY
     result_type="markdown",  # "markdown" and "text" are available
-    num_workers=10,  # if multiple files passed, split in `num_workers` API calls
+    num_workers=6,  # if multiple files passed, split in `num_workers` API calls
     verbose=True,
     language="en",  # Optionally you can define a language, default=en
 )

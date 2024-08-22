@@ -5,7 +5,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from file_processing.document_processor.md_parser import extract_code_blocks
 from file_processing.document_processor.pdf_utils import split_pdf
-from file_processing.storage_manager import global_temp_dir
+from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 
 if __name__ == '__main__':
     from dotenv import load_dotenv
@@ -19,8 +19,6 @@ import uuid
 from typing import List
 
 from langchain_openai import AzureChatOpenAI
-
-from file_processing.document_processor.pdf_parsers import PdfToMdPageInfo, PdfToMdDocument
 
 model = AzureChatOpenAI(
     openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
