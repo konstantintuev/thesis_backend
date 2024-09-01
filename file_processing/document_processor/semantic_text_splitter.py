@@ -1,7 +1,6 @@
 """Experimental **text splitter** based on semantic similarity."""
 import copy
 import os
-import random
 import re
 from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Tuple, cast
 
@@ -19,7 +18,9 @@ from file_processing.document_processor.types_local import UUIDExtractedItemDict
 uuid_pattern = re.compile(
     r'\b[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\b')
 
-def combine_sentences(sentences: List[dict], buffer_size: int = 1, uuid_items: UUIDExtractedItemDict = {}) -> List[dict]:
+
+def combine_sentences(sentences: List[dict], buffer_size: int = 1, uuid_items: UUIDExtractedItemDict = {}) \
+        -> List[dict]:
     """Combine sentences based on buffer size.
 
     Args:
@@ -312,11 +313,11 @@ class SemanticChunker(BaseDocumentTransformer):
             chunks += self._recursive_split(sentences, optimal_split + 1, end_index, max_length, cumulative_lengths)
         return chunks
 
-    def split_sentences(self, text,uuid_items, max_length):
+    def split_sentences(self, text, uuid_items, max_length):
         # Define the regex for splitting sentences
         single_sentences_list = re.split(self.sentence_split_regex, text)
-        # If any sentence is just an UUID (re.match(uuid_pattern, word) is True), it needs to be added to the previous sentence
 
+        # If any sentence is just an UUID (re.match(uuid_pattern, word) is True), it needs to be added to the previous sentence
 
         final_sentences = []
 
@@ -335,8 +336,9 @@ class SemanticChunker(BaseDocumentTransformer):
                         words = subsentence.split()
                         current_subsentence = ""
                         for word in words:
-                            # if the word is not UUID (UUIDs can't be alone in a sentence)
-                            if not re.match(uuid_pattern, word) and len(current_subsentence + word) + 1 > max_length:  # +1 for the space
+                            # If the word is not UUID (UUIDs can't be alone in a sentence)
+                            if not re.match(uuid_pattern, word) and len(
+                                    current_subsentence + word) + 1 > max_length:  # +1 for the space
                                 final_sentences.append(current_subsentence.strip())
                                 current_subsentence = word + " "
                             else:

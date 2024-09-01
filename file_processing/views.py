@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import json
+import re
 import tempfile
 import threading
 import uuid
@@ -22,8 +23,10 @@ import os
 import aiofiles
 
 from file_processing.document_processor.basic_text_processing_utils import concat_chunks
-from file_processing.document_processor.colbert_utils import test_colbert, add_documents_to_index, search_colbert_index
-from file_processing.document_processor.pdf_parsers import pdf_to_md
+from file_processing.document_processor.colbert_utils import test_colbert, add_documents_to_index, search_colbert_index, \
+    add_uuid_object_to_string
+from file_processing.document_processor.pdf_parsers import pdf_to_md_by_type
+from file_processing.document_processor.semantic_text_splitter import uuid_pattern
 from file_processing.embeddings import PendingLangchainEmbeddings, embeddings_model, \
     pending_embeddings_singleton
 from file_processing.document_processor.md_parser import semantic_markdown_chunks, html_to_plain_text
@@ -45,32 +48,6 @@ def index(request):
 
 temp_dir = tempfile.mkdtemp()
 
-
-@csrf_exempt
-@async_to_sync
-async def upload_pdf(request):
-    if request.method == 'POST':
-        file = request.FILES['file']
-        temp_pdf_received = os.path.join(temp_dir, f'{uuid.uuid4()}.pdf')
-        async with aiofiles.open(temp_pdf_received, 'wb') as f:
-            for chunk in file.chunks():
-                await f.write(chunk)
-        parser = LlamaParse(
-            # can also be set in your env as LLAMA_CLOUD_API_KEY
-            result_type="markdown",  # "markdown" and "text" are available
-            num_workers=6,  # if multiple files passed, split in `num_workers` API calls
-            verbose=True,
-            language="en",  # Optionally you can define a language, default=en
-        )
-
-        documents = await parser.aload_data(temp_pdf_received)
-        documents_text = ' '.join([doc.text for doc in documents])
-        print(documents_text)
-        return HttpResponse(documents_text, content_type="text/markdown")
-    else:
-        return HttpResponse('Invalid request')
-
-
 # Function to run async function in a separate thread
 def run_async_task(coro):
     loop = asyncio.new_event_loop()
@@ -83,7 +60,7 @@ def create_chunk(index, chunk, pending_embeddings, uuid_items):
     return out  # (index, out)
 
 async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received: str,
-                             file_mime_type: str):
+                             file_mime_type: str, file_processor: str):
     # with open("raptor/demo/sample_response.json", 'r', encoding='utf-8') as test_file:
     #   test_json_content = test_file.read()
     # return HttpResponse(test_json_content, content_type="application/json")
@@ -98,7 +75,8 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     # Extract document information
     pdf_metadata = PDFMetadata.from_pymupdf(file_name, temp_pdf_received)
 
-    md_content = pdf_to_md(temp_pdf_received, how_good=3, file_uuid=f'{file_uuid}').get_best_text_content()
+    md_content = (pdf_to_md_by_type(temp_pdf_received, file_processor, file_uuid=f'{file_uuid}')
+                  .get_best_text_content())
     headers_to_split_on = [
         ("h1", "Header 1"),
         # ("h2", "Header 2"),
@@ -125,7 +103,12 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
 
     semantic_chapters_concat = concat_chunks(semantic_chapters, int(os.environ.get("MIN_CHUNK_LENGTH")),
                                              int(os.environ.get("MAX_CHUNK_LENGTH")))
-    ret.add_semantic_chapters(semantic_chapters_concat)
+    # Tables, lists and math are valuable content for summarisation
+    semantic_chapters_w_attachable_content = [re.sub(uuid_pattern,
+                                                     lambda match: add_uuid_object_to_string(match, uuid_items),
+                                                     chapter)
+                                              for chapter in semantic_chapters_concat]
+    ret.add_semantic_chapters(semantic_chapters_w_attachable_content)
     # SAVE_PATH = "../raptor/demo/random"
     # ret.save(SAVE_PATH)
 
@@ -148,41 +131,6 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         os.remove(temp_pdf_received)
     print(f"Done: {file_uuid}={queue_id}")
 
-
-@csrf_exempt
-@async_to_sync
-async def pdf_to_chunks(request):
-    if request.method == 'POST':
-        uploaded_files = request.FILES.getlist('file')
-
-        if not uploaded_files:
-            return HttpResponse("No files uploaded")
-        file = uploaded_files[0]
-
-        file_uuid = uuid.uuid4()
-        temp_pdf_received = os.path.join(temp_dir, f'{file_uuid}.pdf')
-        async with aiofiles.open(temp_pdf_received, 'wb') as f:
-            for chunk in file.chunks():
-                await f.write(chunk)
-        file_mime_type = magic.from_file(temp_pdf_received, mime=True)
-
-        if file_mime_type != 'application/pdf':
-            # TODO: accept more files
-            return HttpResponse("File is not a PDF")
-
-        # Schedule the long-running async task to run in the thread
-        thread = threading.Thread(target=run_async_task,
-                                  args=[pdf_to_chunks_task(file_uuid, file.name, temp_pdf_received,
-                                                                 file_mime_type)])
-        thread.start()
-
-        queue_id = await sync_to_async(add_file_to_queue)(str(file_uuid), temp_pdf_received, file_mime_type)
-
-        return JsonResponse({"queue_id": queue_id})
-    else:
-        return HttpResponse('Invalid request')
-
-
 @csrf_exempt
 @async_to_sync
 async def files_to_chunks(request):
@@ -190,12 +138,13 @@ async def files_to_chunks(request):
         uploaded_files = request.FILES.getlist('files')
         upload_urls = request.POST.getlist('fileURLs')
         file_ids = request.POST.getlist('fileIDs')
+        file_processor = request.POST.get('fileProcessor')
 
         if not uploaded_files and not upload_urls:
             return HttpResponse("No files uploaded")
 
         for_queue = []
-        def handle_file(file_uuid, file_name, temp_pdf_received, ):
+        def handle_file(file_uuid, file_name, temp_pdf_received, file_processor):
             file_mime_type = magic.from_file(temp_pdf_received, mime=True)
 
             if file_mime_type != 'application/pdf':
@@ -205,7 +154,7 @@ async def files_to_chunks(request):
             # Schedule the long-running async task to run in the thread
             thread = threading.Thread(target=run_async_task,
                                       args=[pdf_to_chunks_task(file_uuid, file_name, temp_pdf_received,
-                                                               file_mime_type)])
+                                                               file_mime_type, file_processor)])
             thread.start()
 
             for_queue.append({"file_uuid": str(file_uuid), "file_path": temp_pdf_received, "mime_type": file_mime_type})
@@ -221,7 +170,7 @@ async def files_to_chunks(request):
                 response = requests.get(url, stream=True)
                 with open(temp_pdf_received, 'wb') as output:
                     output.write(response.content)
-                handle_file(file_uuid, file_name, temp_pdf_received)
+                handle_file(file_uuid, file_name, temp_pdf_received, file_processor)
         elif uploaded_files:
             for file in uploaded_files:
                 file_uuid = uuid.uuid4()
@@ -229,13 +178,15 @@ async def files_to_chunks(request):
                 async with aiofiles.open(temp_pdf_received, 'wb') as f:
                     for chunk in file.chunks():
                         await f.write(chunk)
-                handle_file(file_uuid, file.name, temp_pdf_received)
+                handle_file(file_uuid, file.name, temp_pdf_received, file_processor)
 
         queue_id = await sync_to_async(add_multiple_files_to_queue)(for_queue)
         return JsonResponse({"multiple_file_queue_id": queue_id})
     else:
         return HttpResponse('Invalid request')
 
+
+@csrf_exempt
 def retrieve_file_from_queue(request):
     if request.method == 'GET':
         file_uuid = request.GET.get('file_uuid')
@@ -247,6 +198,8 @@ def retrieve_file_from_queue(request):
     else:
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
+
+@csrf_exempt
 def retrieve_multiple_files_from_queue(request):
     if request.method == 'GET':
         multiple_files_uuid = request.GET.get('multiple_files_uuid')
@@ -320,5 +273,54 @@ async def search_query(request):
             return JsonResponse({"error": "Invalid JSON"}, status=400)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+@csrf_exempt
+def get_available_processors(request):
+    if request.method == 'GET':
+        return JsonResponse(
+            [
+                {
+                    "processorId": "pdf_to_md_azure_doc_gpt4o",
+                    "processorName": "Azure Document Intelligence + GPT-4o",
+                    "provider": "Azure",
+                    "fileTypesSupported": ["pdf"]
+                },
+                {
+                    "processorId": "pdf_to_md_gpt4o",
+                    "processorName": "GPT-4o",
+                    "provider": "Azure",
+                    "fileTypesSupported": ["pdf"]
+                },
+                {
+                    "processorId": "pdf_to_md_azure_doc_intel",
+                    "processorName": "Azure Doc Intel",
+                    "provider": "Azure",
+                    "fileTypesSupported": ["pdf"]
+                },
+                {
+                    "processorId": "pdf_to_md_llama_parse",
+                    "processorName": "LLaMA Parse",
+                    "provider": "LLaMA",
+                    "fileTypesSupported": ["pdf"]
+                },
+                {
+                    "processorId": "pdf_to_md_pymupdf",
+                    "processorName": "PyMuPDF",
+                    "provider": "PyMuPDF",
+                    "fileTypesSupported": ["pdf"]
+                },
+                {
+                    "processorId": "pdf_to_md_pdf_miner",
+                    "processorName": "PDFMiner",
+                    "provider": "PDFMiner",
+                    "fileTypesSupported": ["pdf"]
+                }
+            ],
+            # 'Safe' serialises only dicts and we have a list here
+            safe=False
+        )
     else:
         return JsonResponse({"error": "Invalid request method"}, status=405)

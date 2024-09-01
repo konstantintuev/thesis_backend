@@ -1,6 +1,5 @@
 # add env vars before loading modules dependent on them (e.g. LLM API)
 import logging
-from abc import ABC
 from enum import Enum
 from typing import Optional, Any, List, Union
 
@@ -11,6 +10,8 @@ from langchain_core.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain_core.structured_query import StructuredQuery, Comparison, Operator, Comparator, FilterDirective, \
     Operation, Visitor
 
+from file_processing.document_processor.llm_chat_support import chat_model
+
 if __name__ == "__main__":
     from dotenv import load_dotenv
 
@@ -19,13 +20,9 @@ if __name__ == "__main__":
 
 from langchain.chains.query_constructor.base import (
     StructuredQueryOutputParser,
-    get_query_constructor_prompt, load_query_constructor_runnable, _format_attribute_info,
+    _format_attribute_info,
 )
 from langchain.chains.query_constructor.schema import AttributeInfo
-from langchain_core.documents import Document
-from langchain_groq import ChatGroq
-
-from file_processing.embeddings import embeddings_model
 
 
 class ExtendedComparator(str, Enum):
@@ -256,7 +253,6 @@ allowed_comparators = [
     Comparator.IN,
     Comparator.NIN
 ]
-llm = ChatGroq(temperature=0, model_name="llama3-70b-8192")
 output_parser = StructuredQueryOutputParserWithFailReason.from_components(
     allowed_operators=[Operator.AND, Operator.NOT],
     allowed_comparators=allowed_comparators,
@@ -312,7 +308,7 @@ def query_to_structured_filter(unstructured_query: str,
         suffix=suffix,
         prefix=prefix,
     )
-    query_constructor = prompt | llm | output_parser
+    query_constructor = prompt | chat_model | output_parser
     res = query_constructor.invoke(
         {
             "query": unstructured_query

@@ -47,6 +47,8 @@ def add_uuid_object_to_string(match, uuid_items: UUIDExtractedItemDict):
             return '\n' + list_string
         elif item['type'] == 'table':
             return '\n' + item["content"]
+        elif item['type'] == 'math':
+            return '\n' + item["content"]
         else:
             return uuid
     return uuid

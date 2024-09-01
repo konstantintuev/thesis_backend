@@ -57,6 +57,23 @@ def extract_and_replace_lists(html_content) -> (str, UUIDExtractedItemDict):
     return str(soup), items_dict
 
 
+def extract_and_replace_html_tables(html_content) -> (str, dict):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    items_dict = {}
+
+    # Find all tables
+    for table_tag in soup.find_all('table'):
+        table_html = str(table_tag)
+        table_uuid = str(uuid.uuid4())
+        table_length = len(table_html)
+
+        table_tag.replace_with(f"{table_uuid}\n")
+
+        items_dict[table_uuid] = {"type": "table", "content": table_html, "length": table_length}
+
+    return str(soup), items_dict
+
+
 def extract_and_replace_tables(md_content) -> (str, UUIDExtractedItemDict):
     table_pattern = re.compile(r'(\|.*\|.*\n(\|[-:]*\|[-|:]*\n)?(\|.*\|.*\n)+)')
     items_dict = {}
@@ -73,6 +90,26 @@ def extract_and_replace_tables(md_content) -> (str, UUIDExtractedItemDict):
     return modified_content, items_dict
 
 
+def extract_and_replace_multiblock_math(md_content) -> (str, UUIDExtractedItemDict):
+    # Extract multiline latex math in markdown
+    multiline_latex_pattern = re.compile(
+        r"(?s)\$\$(.*?)\$\$"
+    )
+
+    items_dict = {}
+
+    def replace_with_uuid(match):
+        math = match.group(0)
+        math_uuid = str(uuid.uuid4())
+        math_length = len(math)
+        items_dict[math_uuid] = {"type": "math", "content": math, "length": math_length}
+        return f"{math_uuid}\n"
+
+    modified_content = re.sub(multiline_latex_pattern, replace_with_uuid, md_content)
+
+    return modified_content, items_dict
+
+
 def html_to_plain_text(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     return soup.get_text()
@@ -80,21 +117,27 @@ def html_to_plain_text(html_content):
 
 def semantic_markdown_chunks(md_content: str, headers_to_split_on: list,
                              min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH"))) -> (
-list[str], UUIDExtractedItemDict):
+        list[str], UUIDExtractedItemDict):
+
     # Extract and replace tables first
     modified_content, tables_dict = extract_and_replace_tables(md_content)
+
+    # Extract and replace math second
+    modified_content, math_dict = extract_and_replace_multiblock_math(modified_content)
 
     # Convert modified markdown to HTML for list processing
     html_content = markdown_to_html(modified_content)
     modified_html, lists_dict = extract_and_replace_lists(html_content)
+    modified_html, html_tables_dict = extract_and_replace_html_tables(modified_html)
 
     # Merge tables and lists into one dictionary
-    items_dict = {**tables_dict, **lists_dict}
+    items_dict = {**tables_dict, **html_tables_dict, **lists_dict, **math_dict}
 
     html_splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
     html_header_splits = html_splitter.split_text(modified_html)
     chunks = [f"# {chunk.metadata.get('Header 1')}\n\n{chunk.page_content}" for chunk in html_header_splits]
     # Merging small chunks measured by character count
+    # TODO: problem, chunks with small text but large attachable content -> split first, extract content later
     final_chunks = concat_chunks(chunks, min_length, max_length=None)
     return final_chunks, items_dict
 
