@@ -44,9 +44,7 @@ def test_md_chunking():
     with open("../raptor/demo/random_paper.md", 'r', encoding='utf-8') as file:
         md_content = file.read()
     headers_to_split_on = [
-        ("h1", "Header 1"),
-        # ("h2", "Header 2"),
-        # ("h3", "Header 3"),
+        ("#", "Header 1")
     ]
 
     semantic_chapters = []

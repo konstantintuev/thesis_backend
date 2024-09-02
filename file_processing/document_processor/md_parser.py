@@ -3,8 +3,7 @@ import re
 import uuid
 from typing import Dict, Union, List
 
-from langchain_core.documents import Document
-from langchain_text_splitters import MarkdownHeaderTextSplitter, HTMLHeaderTextSplitter
+import html2text
 import markdown
 from bs4 import BeautifulSoup
 
@@ -75,7 +74,7 @@ def extract_and_replace_html_tables(html_content) -> (str, dict):
 
 
 def extract_and_replace_tables(md_content) -> (str, UUIDExtractedItemDict):
-    table_pattern = re.compile(r'(\|.*\|.*\n(\|[-:]*\|[-|:]*\n)?(\|.*\|.*\n)+)')
+    table_pattern = re.compile(r'(\|(?:[^\n]*\|)+\n(?:\|[-: ]*\|[-|: ]*\n)?(?:\|(?:[^\n]*\|)+\n)+)', re.MULTILINE)
     items_dict = {}
 
     def replace_with_uuid(match):
@@ -114,41 +113,56 @@ def html_to_plain_text(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     return soup.get_text()
 
+# Custom Markdown splitter as MarkdownHeaderTextSplitter omits recurring headlines
+def split_markdown_by_header(markdown: str) -> list:
+    # Regular expression to match headers starting with `# `
+    # Note: Will include the matched header in the result
+    sections = re.split(r'(?=\n*(?:\s*^#\s+|^.+\n[=]{3,}\s*))', markdown, flags=re.MULTILINE)
+
+    # Remove empty sections
+    sections = [section.strip() for section in sections if section.strip()]
+
+    return sections
 
 def semantic_markdown_chunks(md_content: str, headers_to_split_on: list,
-                             min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH"))) -> (
+                             min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH")),
+                             max_length: int = int(os.environ.get("MAX_CHUNK_LENGTH"))) -> (
         list[str], UUIDExtractedItemDict):
 
-    # Extract and replace tables first
-    modified_content, tables_dict = extract_and_replace_tables(md_content)
+    parser = html2text.HTML2Text()
+    parser.unicode_snob = True
+    chunks = split_markdown_by_header(md_content)
+    final_chunks = concat_chunks(chunks, min_length, max_length)
+    items_dict = {}
+    chunks_w_attachable_content = []
+    for chunk in final_chunks:
+        modified_chunk = chunk + "\n"
 
-    # Extract and replace math second
-    modified_content, math_dict = extract_and_replace_multiblock_math(modified_content)
+        # Extract and replace tables first
+        modified_chunk, tables_dict = extract_and_replace_tables(modified_chunk)
 
-    # Convert modified markdown to HTML for list processing
-    html_content = markdown_to_html(modified_content)
-    modified_html, lists_dict = extract_and_replace_lists(html_content)
-    modified_html, html_tables_dict = extract_and_replace_html_tables(modified_html)
+        # Extract and replace math second
+        modified_chunk, math_dict = extract_and_replace_multiblock_math(modified_chunk)
 
-    # Merge tables and lists into one dictionary
-    items_dict = {**tables_dict, **html_tables_dict, **lists_dict, **math_dict}
+        # Convert modified markdown to HTML for list processing
+        html_chunk = markdown_to_html(modified_chunk)
+        modified_html_chunk, lists_dict = extract_and_replace_lists(html_chunk)
+        modified_html_chunk, html_tables_dict = extract_and_replace_html_tables(modified_html_chunk)
 
-    html_splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
-    html_header_splits = html_splitter.split_text(modified_html)
-    chunks = [f"# {chunk.metadata.get('Header 1')}\n\n{chunk.page_content}" for chunk in html_header_splits]
-    # Merging small chunks measured by character count
-    # TODO: problem, chunks with small text but large attachable content -> split first, extract content later
-    final_chunks = concat_chunks(chunks, min_length, max_length=None)
-    return final_chunks, items_dict
+        # Merge tables and lists into one dictionary
+        items_dict = {**items_dict, **tables_dict, **html_tables_dict, **lists_dict, **math_dict}
+
+        plain_text = parser.handle(modified_html_chunk)
+        chunks_w_attachable_content.append(plain_text)
+
+    return chunks_w_attachable_content, items_dict
 
 
 def test():
     with open("../../raptor/demo/manual.md", 'r', encoding='utf-8') as file:
         md_content = file.read()
     headers_to_split_on = [
-        ("h1", "Header 1"),
-        #("h2", "Header 2"),
-        #("h3", "Header 3"),
+        ("#", "Header 1")
     ]
 
     html_header_splits = semantic_markdown_chunks(md_content, headers_to_split_on, 300)

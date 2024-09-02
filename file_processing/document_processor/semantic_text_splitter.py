@@ -353,7 +353,7 @@ class SemanticChunker(BaseDocumentTransformer):
         # Ensure no sentence is just a UUID by itself or starts with UUID
         final_adjusted_sentences = []
         for sentence in final_sentences:
-            if final_adjusted_sentences and re.match(uuid_pattern, sentence.split()[0]):
+            if final_adjusted_sentences and (not sentence or re.match(uuid_pattern, sentence.split()[0])):
                 final_adjusted_sentences[-1] += '\n' + sentence
             else:
                 final_adjusted_sentences.append(sentence)

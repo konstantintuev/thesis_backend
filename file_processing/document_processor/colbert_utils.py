@@ -107,6 +107,7 @@ def add_documents_to_index(files: List[dict]):
             index_name="default",
             split_documents=False,
         )
+        # TODO: the index is not updated after adding
 
 
 """

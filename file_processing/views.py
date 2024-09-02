@@ -55,8 +55,7 @@ def run_async_task(coro):
     loop.run_until_complete(coro)
 
 def create_chunk(index, chunk, pending_embeddings, uuid_items):
-    plain_text = html_to_plain_text(chunk)
-    out = chunk_into_semantic_chapters(pending_embeddings, plain_text, uuid_items)
+    out = chunk_into_semantic_chapters(pending_embeddings, chunk, uuid_items)
     return out  # (index, out)
 
 async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received: str,
@@ -78,9 +77,7 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     md_content = (pdf_to_md_by_type(temp_pdf_received, file_processor, file_uuid=f'{file_uuid}')
                   .get_best_text_content())
     headers_to_split_on = [
-        ("h1", "Header 1"),
-        # ("h2", "Header 2"),
-        # ("h3", "Header 3"),
+        ("#", "Header 1")
     ]
 
     semantic_chapters: List[str] = []
@@ -104,11 +101,13 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     semantic_chapters_concat = concat_chunks(semantic_chapters, int(os.environ.get("MIN_CHUNK_LENGTH")),
                                              int(os.environ.get("MAX_CHUNK_LENGTH")))
     # Tables, lists and math are valuable content for summarisation
+    # ... BUT adding them f ups the raptor tree
+    # TODO: decide what to do!, unused for now
     semantic_chapters_w_attachable_content = [re.sub(uuid_pattern,
                                                      lambda match: add_uuid_object_to_string(match, uuid_items),
                                                      chapter)
-                                              for chapter in semantic_chapters_concat]
-    ret.add_semantic_chapters(semantic_chapters_w_attachable_content)
+                                              for chapter in semantic_chapters]
+    ret.add_semantic_chapters(semantic_chapters_concat)
     # SAVE_PATH = "../raptor/demo/random"
     # ret.save(SAVE_PATH)
 
@@ -120,7 +119,7 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         "uuid_items": uuid_items,
         "file_uuid": str(file_uuid)
     }
-    add_documents_to_index([out])
+    await sync_to_async(add_documents_to_index)([out])
 
     # Convert the dictionary to JSON
     out_json = json.dumps(out, indent=4)
@@ -254,8 +253,7 @@ async def generate_embeddings(request):
 
 
 @csrf_exempt
-@async_to_sync
-async def search_query(request):
+def search_query(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
