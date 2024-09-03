@@ -23,8 +23,7 @@ import os
 import aiofiles
 
 from file_processing.document_processor.basic_text_processing_utils import concat_chunks
-from file_processing.document_processor.colbert_utils import test_colbert, add_documents_to_index, search_colbert_index, \
-    add_uuid_object_to_string
+from file_processing.document_processor.colbert_utils import colber_local, add_uuid_object_to_string
 from file_processing.document_processor.pdf_parsers import pdf_to_md_by_type
 from file_processing.document_processor.semantic_text_splitter import uuid_pattern
 from file_processing.embeddings import PendingLangchainEmbeddings, embeddings_model, \
@@ -98,8 +97,6 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         semantic_chapters_raw = await asyncio.gather(*tasks)
         semantic_chapters = [chapter for sublist in semantic_chapters_raw for chapter in sublist]
 
-    semantic_chapters_concat = concat_chunks(semantic_chapters, int(os.environ.get("MIN_CHUNK_LENGTH")),
-                                             int(os.environ.get("MAX_CHUNK_LENGTH")))
     # Tables, lists and math are valuable content for summarisation
     # ... BUT adding them f ups the raptor tree
     # TODO: decide what to do!, unused for now
@@ -107,7 +104,7 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
                                                      lambda match: add_uuid_object_to_string(match, uuid_items),
                                                      chapter)
                                               for chapter in semantic_chapters]
-    ret.add_semantic_chapters(semantic_chapters_concat)
+    ret.add_semantic_chapters(semantic_chapters)
     # SAVE_PATH = "../raptor/demo/random"
     # ret.save(SAVE_PATH)
 
@@ -119,7 +116,7 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         "uuid_items": uuid_items,
         "file_uuid": str(file_uuid)
     }
-    await sync_to_async(add_documents_to_index)([out])
+    await sync_to_async(colber_local.add_documents_to_index)([out])
 
     # Convert the dictionary to JSON
     out_json = json.dumps(out, indent=4)
@@ -262,7 +259,7 @@ def search_query(request):
             if query_text is None:
                 return JsonResponse({"error": "Query not provided!"}, status=400)
 
-            res = search_colbert_index(query_text, high_level_summary)
+            res = colber_local.search_colbert_index(query_text, high_level_summary)
             return JsonResponse(res,
                                 status=(200 if isinstance(res, list) or res["error"] is None else 400),
                                 # 'Safe' serialises only dicts and we have a list here

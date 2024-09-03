@@ -3,7 +3,7 @@ import os
 
 from django.apps import AppConfig
 
-from file_processing.document_processor.colbert_utils import test_colbert, initialise_search_component
+from file_processing.document_processor.colbert_utils import colber_local
 from file_processing.file_queue_management.file_queue_db import create_sqlite_database
 from file_processing.storage_manager import delete_temp_dir
 
@@ -16,7 +16,7 @@ class FileProcessingConfig(AppConfig):
         if os.environ.get('RUN_MAIN'):
             # This check ensure we run only once
             create_sqlite_database()
-            initialise_search_component()
+            colber_local.initialise_search_component()
 
             # test_colbert()
             def on_exit():
