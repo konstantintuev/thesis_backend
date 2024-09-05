@@ -5,6 +5,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel
 
+from file_processing.document_processor.llm_chat_support import model_concrete
 from file_processing.document_processor.md_parser import extract_code_blocks
 from file_processing.document_processor.pdf_utils import split_pdf
 from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
@@ -16,16 +17,6 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
 import os
-
-from langchain_openai import AzureChatOpenAI
-
-model = AzureChatOpenAI(
-    openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
-    azure_deployment=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),
-    azure_endpoint=os.environ.get("AZURE_GPT_4o_ENDPOINT"),
-    openai_api_key=os.environ.get("AZURE_GPT_4o_API_KEY"),
-    temperature=0.2
-)
 
 
 def create_prompt_for_page(image_data: str, prompt: dict):
@@ -73,7 +64,7 @@ def pdf_to_md_gpt4o(pdf_filepath: str, output_dir: str, n: int = 8) -> PdfToMdDo
             with open(split_pdf_path.screenshots_per_page[0], "rb") as screenshot:
                 image_data = base64.b64encode(screenshot.read()).decode("utf-8")
             prompt_template = create_prompt_for_page(image_data, prompt)
-            chains[f"page_{i + idx}"] = prompt_template | model
+            chains[f"page_{i + idx}"] = prompt_template | model_concrete
 
         # Run this batch in parallel
         map_chain = RunnableParallel(**chains)

@@ -70,8 +70,6 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     # tree_json = json.dumps(tree_dict, indent=4)
 
     # return HttpResponse(tree_json, content_type="application/json")
-    # Extract document information
-    pdf_metadata = PDFMetadata.from_pymupdf(file_name, temp_pdf_received)
 
     md_content = (pdf_to_md_by_type(temp_pdf_received, file_processor, file_uuid=f'{file_uuid}')
                   .get_best_text_content())
@@ -104,6 +102,14 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
                                                      lambda match: add_uuid_object_to_string(match, uuid_items),
                                                      chapter)
                                               for chapter in semantic_chapters]
+    # Extract document information
+    pdf_metadata = PDFMetadata.from_pymupdf(file_name, temp_pdf_received)
+    semantic_metadata = PDFMetadata.extract_from_text(semantic_chapters_w_attachable_content)
+    total_metadata = {}
+    total_metadata.update({
+        "file_metadata": pdf_metadata.to_dict(),
+        "semantic_metadata": semantic_metadata
+    })
     ret.add_semantic_chapters(semantic_chapters)
     # SAVE_PATH = "../raptor/demo/random"
     # ret.save(SAVE_PATH)
@@ -112,7 +118,7 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
 
     out = {
         "tree": tree_dict,
-        "metadata": pdf_metadata.to_dict(),
+        "metadata": total_metadata,
         "uuid_items": uuid_items,
         "file_uuid": str(file_uuid)
     }

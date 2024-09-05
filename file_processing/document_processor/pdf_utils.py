@@ -1,11 +1,14 @@
+import json
 import os
 import re
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Tuple, List
+from datetime import datetime
+from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
 
 import fitz
-from llama_parse import LlamaParse
+import tiktoken
+
+from file_processing.document_processor.llm_chat_support import model_abstract
 
 """Sample:
 {
@@ -194,15 +197,93 @@ class PDFMetadata:
             f"Average Words per Page: {self.avgWordsPerPage if self.avgWordsPerPage is not None else 'N/A'}\n"
             f"Word Count: {self.wordCount if self.wordCount is not None else 'N/A'}\n"
         )
+    @staticmethod
+    def merge_json(obj1, obj2):
+        def get_new_key(existing_keys, base_key):
+            """
+            Get the next available key when there are conflicts.
+            """
+            i = 1
+            new_key = f"{base_key}_{i}"
+            while new_key in existing_keys:
+                i += 1
+                new_key = f"{base_key}_{i}"
+            return new_key
 
+        """
+        Recursively merges obj2 into obj1. Concats strings, adds numbers, extends lists,
+        merges dictionaries and handles sets.
+        """
 
-llama_parser = LlamaParse(
-    # can also be set in your env as LLAMA_CLOUD_API_KEY
-    result_type="markdown",  # "markdown" and "text" are available
-    num_workers=6,  # if multiple files passed, split in `num_workers` API calls
-    verbose=True,
-    language="en",  # Optionally you can define a language, default=en
-)
+        if not isinstance(obj1, dict) or not isinstance(obj2, dict):
+            raise ValueError("Both need to be dictionaries.")
+
+        for key, value in obj2.items():
+            if key in obj1:
+                if isinstance(value, dict) and isinstance(obj1[key], dict):
+                    PDFMetadata.merge_json(obj1[key], value)
+                elif isinstance(value, str) and isinstance(obj1[key], str):
+                    obj1[key] += value
+                elif isinstance(value, (int, float)) and isinstance(obj1[key], (int, float)):
+                    obj1[key] += value
+                elif isinstance(value, list) and isinstance(obj1[key], list):
+                    obj1[key].extend(value)
+                elif isinstance(value, set) and isinstance(obj1[key], set):
+                    obj1[key].update(value)
+                elif isinstance(value, tuple) and isinstance(obj1[key], tuple):
+                    obj1[key] = obj1[key] + value
+                elif value is None:
+                    continue
+                else:
+                    # Handle conflicting types by adding the new value under a new key
+                    new_key = get_new_key(obj1.keys(), key)
+                    obj1[new_key] = value
+            else:
+                obj1[key] = value
+        return obj1
+
+    @staticmethod
+    def extract_from_text(semantic_chapters: List[str]):
+        """ Idea:
+        1. Get max context window for specific LLM
+        2. Concat chapters up to context window (need tokeniser or rough statistic with leeway)
+        3. Prompt for json metadata and extract like basic rule extractor
+        """
+        context_window = 16000  #tokens
+        encoding = tiktoken.encoding_for_model('gpt-4o')
+        semantic_chapter_tokens = [encoding.encode(chapter) for chapter in semantic_chapters]
+        # Add all semantic_chapter_tokens up to context_window
+        token_splits: List[str] = []
+        token_count = 0
+        current_split = []
+        for token in semantic_chapter_tokens:
+            if token_count + len(token) > context_window:
+                token_splits.append(encoding.decode(current_split))
+                current_split = []
+                token_count = 0
+            current_split.extend(token)
+            token_count += len(token)
+        token_splits.append(encoding.decode(current_split))
+        # Extract metadata from each split
+        metadata = {}
+        json_llm = model_abstract.bind(response_format={"type": "json_object"})
+        for split in token_splits:
+            ai_msg = json_llm.invoke(
+                f"Given the following chapter:\n{split}\n\n"
+                "Return a JSON object with describing the most important characteristics of the chapter as metadata in form:\n"
+                "{ [short key describing the important characteristics]: \"key value\", ... }\n"
+                "When preparing the metadata json take inspiration from Industry 4.0 and metadata for manual of a digital twin!\n"
+                "Focus on product specifications and descriptions of processes. You can ignore irrelevant info!"
+            )
+
+            try:
+                json_object = json.loads(ai_msg.content)
+                # Data is written to metadata
+                PDFMetadata.merge_json(metadata, json_object)
+            except ValueError as e:
+                pass  # invalid json
+
+        return metadata
 
 
 def get_filename_from_url(url):
