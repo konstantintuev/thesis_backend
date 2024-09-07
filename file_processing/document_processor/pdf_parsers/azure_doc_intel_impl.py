@@ -288,7 +288,7 @@ class AzureDocIntelTPS:
 
         split_pdf_paths = split_pdf(pdf_filepath,
                                     output_dir,
-                                    1,
+                                    2,
                                     True)
         pages_out = PdfToMdDocument()
         analysis_features = ["ocrHighResolution", "formulas"]

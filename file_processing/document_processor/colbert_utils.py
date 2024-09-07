@@ -86,7 +86,8 @@ class ColbertLocal():
                 document_metadatas=document_metadatas,
                 max_document_length=8190,
                 split_documents=False,
-                index_name="default"
+                index_name="default",
+                bsize=10
             )
             self.initialise_search_component()
         else:
@@ -96,6 +97,7 @@ class ColbertLocal():
                 new_document_metadatas=document_metadatas,
                 index_name="default",
                 split_documents=False,
+                bsize=10
             )
             self.colbert_model: RAGPretrainedModel = RAGPretrainedModel.from_index(self.index_path)
 
