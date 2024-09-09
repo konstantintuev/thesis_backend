@@ -20,6 +20,7 @@ class FileProcessingConfig(AppConfig):
             # This check ensure we run only once
             create_sqlite_database()
             colber_local.initialise_search_component()
+            self.load_document_trees()
 
             # test_colbert()
             def on_exit():
@@ -37,8 +38,9 @@ class FileProcessingConfig(AppConfig):
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
 
-            if os.path.isfile(file_path):
+            if os.path.isfile(file_path) and filename.startswith("do_"):
                 with open(file_path, 'r', encoding='utf-8') as file:
                     content = file.read()
                     list_of_trees.append(json.loads(content))
-        colber_local.add_documents_to_index(list_of_trees)
+        if len(list_of_trees) > 0:
+            colber_local.add_documents_to_index(list_of_trees)

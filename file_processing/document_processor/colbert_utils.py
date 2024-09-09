@@ -110,7 +110,8 @@ class ColbertLocal():
                             device='mps')
     """
 
-    def search_colbert_index(self, query: str, high_level_summary: str = None) -> dict or None:
+    def search_colbert_index(self, query: str, high_level_summary: str = None, unique_file_ids: List[str] = None,
+                             source_count: int = None) -> dict or None:
         if not os.path.exists(self.index_path):
             return {"error": "No files indexed!"}
         # 'colbert_model.search' returns a list of dictionaries with the following structure:
@@ -127,10 +128,14 @@ class ColbertLocal():
         #  }
         # }
 
+        if unique_file_ids and len(unique_file_ids) == 0:
+            return []
+
         res = self.colbert_model.search(
             query=query,
             index_name="default",
-            k=100
+            k=(source_count if source_count else 100),
+            doc_ids=unique_file_ids
         )
         """
         Tested with:

@@ -21,6 +21,7 @@ import nest_asyncio
 from django.views.decorators.csrf import csrf_exempt
 import os
 import aiofiles
+from langchain.chains.query_constructor.schema import AttributeInfo
 
 from file_processing.document_processor.basic_text_processing_utils import concat_chunks
 from file_processing.document_processor.colbert_utils import colber_local, add_uuid_object_to_string
@@ -34,6 +35,7 @@ from file_processing.document_processor.summarisation_utils import chunk_into_se
 from file_processing.document_processor.raptor_utils import custom_config, tree_to_dict
 from file_processing.file_queue_management.file_queue_db import add_file_to_queue, get_file_from_queue, set_file_status, \
     add_multiple_files_to_queue, get_multiple_files_queue
+from file_processing.query_processor.basic_rule_extractor import query_to_structured_filter
 from raptor.raptor import RetrievalAugmentation
 
 nest_asyncio.apply()
@@ -262,10 +264,12 @@ def search_query(request):
             data = json.loads(request.body)
             query_text = data.get('query', None)
             high_level_summary = data.get('high_level_summary', None)
+            unique_file_ids = data.get('unique_file_ids', None)
+            source_count = data.get('source_count', None)
             if query_text is None:
                 return JsonResponse({"error": "Query not provided!"}, status=400)
 
-            res = colber_local.search_colbert_index(query_text, high_level_summary)
+            res = colber_local.search_colbert_index(query_text, high_level_summary, unique_file_ids, source_count)
             return JsonResponse(res,
                                 status=(200 if isinstance(res, list) or res["error"] is None else 400),
                                 # 'Safe' serialises only dicts and we have a list here
@@ -323,5 +327,36 @@ def get_available_processors(request):
             # 'Safe' serialises only dicts and we have a list here
             safe=False
         )
+    else:
+        return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+@csrf_exempt
+def text_2_query(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            attribute_info = [AttributeInfo(
+                name=item.get('name'),
+                description=item.get('description'),
+                type=item.get('type'),
+            ) for item in data.get('attributes', [])]
+            query_text = data.get('query', None)
+            document_content_description = data.get('files_description', None)
+            if not query_text or not document_content_description or len(attribute_info) == 0:
+                return JsonResponse({"error": "Bad inputs"}, status=400)
+            res = query_to_structured_filter(
+                query_text,
+                document_content_description,
+                attribute_info
+            )
+            return JsonResponse(res,
+                                status=200,
+                                # 'Safe' serialises only dicts and we should have a list here
+                                safe=False)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
     else:
         return JsonResponse({"error": "Invalid request method"}, status=405)

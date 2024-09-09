@@ -135,22 +135,28 @@ class StructuredQueryWithFailReason(StructuredQuery):
         comparator_visitor = ComparisonCollectorVisitor()
         result.accept(comparator_visitor)
 
+        placeholder_value = "__________"
+
         return {
-            "query": self.query,
+            "query": self.query.replace(placeholder_value, ".") if self.query else None,
             "filter": [{
-                "attribute": comparison.attribute,
+                "attribute": comparison.attribute.replace(placeholder_value, ".")
+                if comparison.attribute else None,
                 "comparator": f"{comparison.comparator}",
-                "value": comparison.value,
+                "value": comparison.value.replace(placeholder_value, ".")
+                if comparison.value else None,
             } for comparison in comparator_visitor.comparison_list],
-            "reason_for_no_filter": self.fail_reason,
+            "reason_for_no_filter": self.fail_reason.replace(placeholder_value, ".")
+            if self.fail_reason else None,
         }
+
 
 class StructuredQueryOutputParserWithFailReason(StructuredQueryOutputParser,
                                                 BaseOutputParser[StructuredQueryWithFailReason]):
     """Output parser that parses a structured query."""
 
     def parse(self, text: str) -> StructuredQueryWithFailReason:
-        structured_query_res = super().parse(text)
+        structured_query_res = super().parse(text.replace(".", "__________"))
         if structured_query_res.filter is None:
             expected_keys = ["reason_for_no_filter"]
             parsed = parse_and_check_json_markdown(text, expected_keys)
@@ -168,57 +174,157 @@ class StructuredQueryOutputParserWithFailReason(StructuredQueryOutputParser,
             fail_reason=None,
         )
 
-DEFAULT_SCHEMA = """\
-<< Structured Request Schema >>
-When responding use a markdown code snippet with a JSON object formatted in the following schema:
+
+MEGA_PROMPT = """\
+### Goal:
+Format the user’s query using the schema below, always starting the `filter` with `and`.
+Note: Use sample values for context only — do not use them directly in the response.
+
+
+### Request Schema:
+Return a markdown code snippet in the following JSON format:
 
 ```json
-{{{{
-    "query": "string \\ text string to compare to document contents",
-    "filter": "string \\ logical condition statement for filtering documents"
-}}}}
+{
+    "query": "string \ text to match document content",
+    "filter": "string \ logical conditions starting with 'and'",
+    "reason_for_no_filter": "string \ explanation if no filter is applied"
+}
 ```
 
-The query string should contain only text that is expected to match the contents of documents. Any conditions in the filter should not be mentioned in the query as well.
+### Key Rules:
+- **Query**: Only contains text expected to match document content.
+- **Filter**:
+  - Must **always** start with `and`.
+  - Use only the allowed operators: `and`, `not`.
+  - Comparisons are in this format: `comp(attr, val)`:
+    - `comp`: (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contain`, `in`, `nin`)
+    - `attr`: Attribute name from the data source.
+    - `val`: The comparison value.
+- **No Filter**: Return `"NO_FILTER"` if:
+  - The query needs unsupported operators (like `or`).
+  - The query is too broad or unrelated to data source attributes.
 
-A logical condition statement is composed of one or more comparison and logical operation statements.
+### Important:
+- **Do not use sample values directly**. They are provided for understanding how attributes and values may look, but the response should be based on the actual user query and data source.
+  
+---
 
-A comparison statement takes the form: `comp(attr, val)`:
-- `comp` ({allowed_comparators}): comparator
-- `attr` (string):  name of attribute to apply the comparison to
-- `val` (string): is the comparison value
+### Example 1
 
-A logical operation statement takes the form `op(statement1, statement2, ...)`:
-- `op` ({allowed_operators}): logical operator
-- `statement1`, `statement2`, ... (comparison statements or logical operation statements): one or more statements to apply the operation to
+**Data Source**:
 
-There is only one "and" logical operation statement and it is connecting all comparison statements (e.g. and(...)).
-The list of allowed operators ("{allowed_operators}") is very limited for a reason.
-Make sure that you only use the comparators and logical operators listed above ("{allowed_operators}") and no others (not allowed are "or", ...).
-If the query cannot be expressed with the allowed operators (only using "{allowed_operators}"), return "NO_FILTER" for the filter value.
-If the query requires a forbidden operator like "or", return "NO_FILTER" for the filter value.
-Make sure that filters only refer to attributes that exist in the data source.
-The query may contain references to attributes outside of the data source given in the last example,
- the user writing the query is very dumb and doesn't know the data source, therefore return "NO_FILTER" for the filter value.
-Don't make any assumptions about the data source and the attributes in it, use only the stated information, if there are discrepancies return "NO_FILTER" for the filter value.
-Always stick strictly to the value type of each attribute when writing the filter!
-Make sure that filters only use the attributed names with its function names if there are functions applied on them.
-Make sure that filters only use format `YYYY-MM-DD` when handling date data typed values.
-Make sure that filters take into account the descriptions of attributes and only make comparisons that are feasible given the type of data being stored.
-Make sure that filters are only used as needed. If there are no filters that should be applied return "NO_FILTER" for the filter value.
-\
-"""
-DEFAULT_SCHEMA_PROMPT = PromptTemplate.from_template(DEFAULT_SCHEMA)
+```json
+{{
+    "content": "Lyrics of a song",
+    "attributes": {{
+        "artist": {{
+            "type": "string",
+            "description": "Here are some sample values for artist: John Lennon, Freddy Mercury, Bruce Springsteen"
+        }},
+        "length": {{
+            "type": "integer",
+            "description": "Length of the song in seconds"
+        }},
+        "genre": {{
+            "type": "string",
+            "description": "The song genre, one of \"pop\", \"rock\" or \"rap\""
+        }}
+    }}
+}}
+```
 
-DEFAULT_PREFIX = """\
-Your goal is to structure the user's query to match the request schema provided below.
+**User Query**: Songs by Taylor Swift about teenage romance under 3 minutes in pop.
 
-{schema}\
+**Structured Request**:
+
+```json
+{
+    "query": "teenage love",
+    "filter": "and(eq(\"artist\", \"Taylor Swift\"), lt(\"length\", 180), eq(\"genre\", \"pop\"))"
+}
+```
+
+---
+
+### Example 2
+
+**Data Source**:
+```json
+{{
+    "content": "Lyrics of a song",
+    "attributes": {{
+        "artist": {{
+            "type": "string",
+            "description": "Name of the song artist"
+        }},
+        "length": {{
+            "type": "integer",
+            "description": "Length of the song in seconds"
+        }},
+        "genre": {{
+            "type": "string",
+            "description": "The song genre, one of \"pop\", \"rock\" or \"rap\""
+        }}
+    }}
+}}
+```
+
+**User Query**: Songs by Taylor Swift or Katy Perry about teenage romance under 3 minutes in pop.
+
+**Structured Request**:
+
+```json
+{
+    "query": "",
+    "filter": "NO_FILTER",
+    "reason_for_no_filter": "OR operator is not supported"
+}
+```
+
+---
+
+### Example 3
+**Data Source**:
+```json
+{{
+    "content": "Lyrics of a song",
+    "attributes": {{
+        "artist": {{
+            "type": "string",
+            "description": "Name of the song artist"
+        }},
+        "length": {{
+            "type": "integer",
+            "description": "Length of the song in seconds"
+        }},
+        "genre": {{
+            "type": "string",
+            "description": "The song genre, one of \"pop\", \"rock\" or \"rap\""
+        }}
+    }}
+}}
+```
+
+**User Query**: Songs not on Spotify.
+
+**Structured Request**:
+
+```json
+{
+    "query": "",
+    "filter": "NO_FILTER",
+    "reason_for_no_filter": "Query is too broad"
+}
+```
 """
 
 DEFAULT_SUFFIX = """\
-<< Example {i}. >>
-Data Source:
+
+---
+
+### Actual Request
+**Data Source**:
 ```json
 {{{{
     "content": "{content}",
@@ -226,20 +332,9 @@ Data Source:
 }}}}
 ```
 
-User Query:
-{{query}}
+**User Query**: {query}
 
-Structured Request:
-"""
-
-NO_FILTER_ANSWER = """\
-```json
-{{
-    "query": "",
-    "filter": "NO_FILTER",
-    "reason_for_no_filter": "string describing why no filter can be applied given the query and the constraints"
-}}
-```\
+**Structured Request**:
 """
 
 allowed_comparators = [
@@ -259,63 +354,24 @@ output_parser = StructuredQueryOutputParserWithFailReason.from_components(
     fix_invalid=True,
 )
 
+
 def query_to_structured_filter(unstructured_query: str,
                                document_content_description: str,
                                metadata_field_info: List[AttributeInfo]) -> dict:
-    default_schema_prompt = DEFAULT_SCHEMA_PROMPT
-    schema_prompt = default_schema_prompt
     attribute_str = _format_attribute_info(metadata_field_info)
-    schema = schema_prompt.format(
-        allowed_comparators=" | ".join(allowed_comparators),
-        allowed_operators=" | ".join([Operator.AND, Operator.NOT]),
-    )
-    examples = [
-        {
-            "i": 1,
-            "data_source": SONG_DATA_SOURCE,
-            "user_query": "What are songs by Taylor Swift about teenage romance under 3 minutes long in the dance pop genre",
-            "structured_request": """\
-    ```json
-    {{
-        "query": "teenager love",
-        "filter": "and(eq(\\"artist\\", \\"Taylor Swift\\"), lt(\\"length\\", 180), eq(\\"genre\\", \\"pop\\"))"
-    }}
-    ```\
-    """,
-        },
-        {
-            "i": 2,
-            "data_source": SONG_DATA_SOURCE,
-            "user_query": "What are songs by Taylor Swift or Katy Perry about teenage romance under 3 minutes long in the dance pop genre",
-            "structured_request": NO_FILTER_ANSWER,
-        },
-        {
-            "i": 3,
-            "data_source": SONG_DATA_SOURCE,
-            "user_query": "What are songs that were not published on Spotify",
-            "structured_request": NO_FILTER_ANSWER,
-        },
-    ]
-    example_prompt = EXAMPLE_PROMPT
-    prefix = DEFAULT_PREFIX.format(schema=schema)
+
     suffix = DEFAULT_SUFFIX.format(
-        i=len(examples) + 1, content=document_content_description, attributes=attribute_str
-    )
-    prompt = FewShotPromptTemplate(
-        examples=list(examples),
-        example_prompt=example_prompt,
-        input_variables=["query"],
-        suffix=suffix,
-        prefix=prefix,
-    )
-    query_constructor = prompt | chat_model | output_parser
-    res = query_constructor.invoke(
-        {
-            "query": unstructured_query
-        }
-    )
+        content=document_content_description,
+        attributes=attribute_str,
+        query=unstructured_query
+    ).replace("{{", "{").replace("}}", "}")
+
+    json_llm = chat_model.bind(response_format={"type": "json_object"})
+    query_constructor = json_llm | output_parser
+    res = query_constructor.invoke(MEGA_PROMPT + suffix)
     js = res.to_json()
     return js
+
 
 if __name__ == "__main__":
     document_content_description = "Brief summary of a movie"
@@ -345,5 +401,3 @@ if __name__ == "__main__":
         metadata_field_info
     )
     print("res:", res)
-
-
