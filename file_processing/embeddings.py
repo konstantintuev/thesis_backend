@@ -4,6 +4,7 @@ import uuid
 from collections import OrderedDict
 from typing import List
 
+import torch.backends.mps
 from FlagEmbedding.bge_m3 import BGEM3FlagModel
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.embeddings import Embeddings
@@ -18,7 +19,7 @@ class BGEM3Flag(Embeddings):
         """
         self.model = BGEM3FlagModel('BAAI/bge-m3',
                                     use_fp16=True,
-                                    device='mps')
+                                    device=('mps' if torch.backends.mps.is_available() else 'cpu'))
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embed search docs."""
@@ -28,12 +29,12 @@ class BGEM3Flag(Embeddings):
         """Embed query text."""
         return self.model.encode(text, batch_size=12)['dense_vecs'].tolist()
 
-
-model_kwargs = {"device": "mps"}
-encode_kwargs = {"normalize_embeddings": True}
 embeddings_model = BGEM3Flag()
 
-"""HuggingFaceBgeEmbeddings(
+"""
+model_kwargs = {"device": "mps"}
+encode_kwargs = {"normalize_embeddings": True}
+HuggingFaceBgeEmbeddings(
     model_name=model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs
 )"""
 

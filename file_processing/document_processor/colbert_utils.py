@@ -36,9 +36,9 @@ class ColbertLocal():
     def __init__(self):
         self.index_path = ".ragatouille/colbert/indexes/default"
         self.colbert_model: RAGPretrainedModel = (
-            RAGPretrainedModel.from_index(self.index_path)
+            RAGPretrainedModel.from_index(self.index_path, n_gpu=0)
             if os.path.exists(self.index_path)
-            else RAGPretrainedModel.from_pretrained("jinaai/jina-colbert-v1-en")
+            else RAGPretrainedModel.from_pretrained("jinaai/jina-colbert-v1-en", n_gpu=0)
         )
 
     def initialise_search_component(self):
@@ -99,7 +99,7 @@ class ColbertLocal():
                 split_documents=False,
                 bsize=10
             )
-            self.colbert_model: RAGPretrainedModel = RAGPretrainedModel.from_index(self.index_path)
+            self.colbert_model: RAGPretrainedModel = RAGPretrainedModel.from_index(self.index_path, n_gpu=0)
 
     """
     Reranker proved to have marginal improvement at best at the cost of 2 mins per query
