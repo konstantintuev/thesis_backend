@@ -4,6 +4,7 @@ import uuid
 from collections import OrderedDict
 from typing import List
 
+import psutil
 import torch.backends.mps
 from FlagEmbedding.bge_m3 import BGEM3FlagModel
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
@@ -21,13 +22,21 @@ class BGEM3Flag(Embeddings):
                                     use_fp16=True,
                                     device=('mps' if torch.backends.mps.is_available() else 'cpu'))
 
+    def get_batch_size(self):
+        if torch.backends.mps.is_available():
+            # My mac with 8 GB of VRAM handles so much
+            return 12
+        # Else we do CPU
+        total_ram_gb = psutil.virtual_memory().total / (1024 ** 3)
+        return 12 if total_ram_gb < 20 else 60
+
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embed search docs."""
-        return self.model.encode(texts, batch_size=12)['dense_vecs'].tolist()
+        return self.model.encode(texts, batch_size=self.get_batch_size())['dense_vecs'].tolist()
 
     def embed_query(self, text: str) -> List[float]:
         """Embed query text."""
-        return self.model.encode(text, batch_size=12)['dense_vecs'].tolist()
+        return self.model.encode(text, batch_size=self.get_batch_size())['dense_vecs'].tolist()
 
 embeddings_model = BGEM3Flag()
 

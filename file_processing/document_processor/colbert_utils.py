@@ -2,6 +2,7 @@ import os
 from typing import List
 import re
 
+import psutil
 from ragatouille import RAGPretrainedModel
 from FlagEmbedding import LayerWiseFlagLLMReranker
 from operator import itemgetter
@@ -45,6 +46,11 @@ class ColbertLocal():
         self.search_colbert_index("Initialise the search component")
         pass
 
+    def get_batch_size(self):
+        total_ram_gb = psutil.virtual_memory().total / (1024 ** 3)
+        return 10 if total_ram_gb < 50 else 50
+
+
     """
     Expected input structure:
     files = {
@@ -87,7 +93,7 @@ class ColbertLocal():
                 max_document_length=8190,
                 split_documents=False,
                 index_name="default",
-                bsize=10
+                bsize=self.get_batch_size()
             )
             self.initialise_search_component()
         else:
@@ -97,7 +103,7 @@ class ColbertLocal():
                 new_document_metadatas=document_metadatas,
                 index_name="default",
                 split_documents=False,
-                bsize=10
+                bsize=self.get_batch_size()
             )
             self.colbert_model: RAGPretrainedModel = RAGPretrainedModel.from_index(self.index_path, n_gpu=0)
 
