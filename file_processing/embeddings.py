@@ -27,8 +27,7 @@ class BGEM3Flag(Embeddings):
             # My mac with 8 GB of VRAM handles so much
             return 12
         # Else we do CPU
-        total_ram_gb = psutil.virtual_memory().total / (1024 ** 3)
-        return 12 if total_ram_gb < 20 else 60
+        return 4
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embed search docs."""

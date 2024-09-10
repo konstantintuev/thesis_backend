@@ -47,8 +47,7 @@ class ColbertLocal():
         pass
 
     def get_batch_size(self):
-        total_ram_gb = psutil.virtual_memory().total / (1024 ** 3)
-        return 10 if total_ram_gb < 50 else 50
+        return 10
 
 
     """
