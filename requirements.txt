@@ -76,3 +76,8 @@ unstructured
 gptpdf
 pymupdf4llm
 azure-ai-documentintelligence
+django-cors-headers
+peft
+langchain_community
+langchain_groq
+html2text
