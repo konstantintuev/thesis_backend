@@ -120,6 +120,14 @@ model_concrete = AzureChatOpenAI(
     temperature=0.2
 )
 
+model_no_imagination = AzureChatOpenAI(
+    openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
+    azure_deployment=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),
+    azure_endpoint=os.environ.get("AZURE_GPT_4o_ENDPOINT"),
+    openai_api_key=os.environ.get("AZURE_GPT_4o_API_KEY"),
+    temperature=0
+)
+
 model_abstract = AzureChatOpenAI(
     openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
     azure_deployment=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),

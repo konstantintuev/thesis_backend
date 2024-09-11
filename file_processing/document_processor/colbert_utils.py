@@ -6,7 +6,9 @@ import psutil
 from ragatouille import RAGPretrainedModel
 from FlagEmbedding import LayerWiseFlagLLMReranker
 from operator import itemgetter
+from FlagEmbedding import FlagLLMReranker
 
+from file_processing.document_processor.rank_gpt import RankGPTRanker
 from file_processing.document_processor.semantic_text_splitter import uuid_pattern
 from file_processing.document_processor.types_local import UUIDExtractedItemDict
 from file_processing.file_queue_management.file_queue_db import get_file_from_queue, get_all_files_queue
@@ -115,6 +117,9 @@ class ColbertLocal():
                             device='mps')
     """
 
+    reranker = FlagLLMReranker('BAAI/bge-reranker-v2-gemma',
+                               use_fp16=True)
+
     def search_colbert_index(self, query: str, high_level_summary: str = None, unique_file_ids: List[str] = None,
                              source_count: int = None) -> dict or None:
         if not os.path.exists(self.index_path):
@@ -136,10 +141,15 @@ class ColbertLocal():
         if unique_file_ids and len(unique_file_ids) == 0:
             return []
 
+        internal_source_count = (source_count if source_count else 100)
+        if internal_source_count < 10:
+            # For reranking of last few
+            internal_source_count += 4
+
         res = self.colbert_model.search(
             query=query,
             index_name="default",
-            k=(source_count if source_count else 100),
+            k=internal_source_count,
             doc_ids=unique_file_ids
         )
         """
@@ -171,6 +181,10 @@ class ColbertLocal():
                                                      f"{high_level_summary}")
         """
 
+        if source_count and source_count < 10:
+            #return self.do_reasonable_reranking(query, res)
+            return self.do_crazy_reranking(query, res)
+
         reranked = [{
             # "content": chunk["content"],
             "score": chunk["score"] / 100,
@@ -190,6 +204,54 @@ class ColbertLocal():
         file_data["tree"] = file_data["result"]["tree"]
         file_data["result"] = None
         self.add_documents_to_index(file_data)
+
+    def do_reasonable_reranking(self, query, res):
+        rerank_score = self.reranker.compute_score([(query, chunk["content"]) for chunk in res],
+                                                   max_length=8192,
+                                                   batch_size=1,
+                                                   normalize=True)
+
+        reranked = [{
+            "content": chunk["content"],
+            "score": rerank_score[index],
+            "rank": chunk["rank"],
+            "orig_score": chunk["score"] / 100,
+            "passage_id": chunk["passage_id"],
+            "document_metadata": chunk["document_metadata"]
+        } for index, chunk in enumerate(res)]
+
+        reranked_order = sorted(reranked, key=itemgetter('score'), reverse=True)
+
+        if len(reranked_order) >= 8:
+            reranked_order = reranked_order[:-4]
+
+        return reranked_order
+
+    def do_crazy_reranking(self, query, res):
+        from rerankers.documents import Document
+        crazy_reranker = RankGPTRanker()
+        reranked_orig = crazy_reranker.rank(query, [
+            Document(chunk["content"], chunk["passage_id"])
+            for chunk in res
+        ])
+
+
+
+        reranked = [{
+            "content": chunk["content"],
+            "orig_rank": reranked_orig.get_result_by_docid(chunk["passage_id"]).rank,
+            "rank": chunk["rank"],
+            "score": chunk["score"] / 100,
+            "passage_id": chunk["passage_id"],
+            "document_metadata": chunk["document_metadata"]
+        } for index, chunk in enumerate(res)]
+
+        reranked_order = sorted(reranked, key=itemgetter('rank'), reverse=False)
+
+        if len(reranked_order) >= 8:
+            reranked_order = reranked_order[:-4]
+
+        return reranked_order
 
 
 colber_local = ColbertLocal()
