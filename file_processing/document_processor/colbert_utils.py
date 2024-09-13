@@ -39,9 +39,9 @@ class ColbertLocal():
     def __init__(self):
         self.index_path = ".ragatouille/colbert/indexes/default"
         self.colbert_model: RAGPretrainedModel = (
-            RAGPretrainedModel.from_index(self.index_path, n_gpu=0)
+            RAGPretrainedModel.from_index(self.index_path)
             if os.path.exists(self.index_path)
-            else RAGPretrainedModel.from_pretrained("jinaai/jina-colbert-v1-en", n_gpu=0)
+            else RAGPretrainedModel.from_pretrained("jinaai/jina-colbert-v1-en")
         )
 
     def initialise_search_component(self):
@@ -49,7 +49,7 @@ class ColbertLocal():
         pass
 
     def get_batch_size(self):
-        return 10
+        return 5
 
 
     """
@@ -94,7 +94,7 @@ class ColbertLocal():
                 max_document_length=8190,
                 split_documents=False,
                 index_name="default",
-                bsize=self.get_batch_size()
+                bsize=self.get_batch_size(),
             )
             self.initialise_search_component()
         else:
@@ -116,9 +116,6 @@ class ColbertLocal():
                             use_fp16=True,
                             device='mps')
     """
-
-    reranker = FlagLLMReranker('BAAI/bge-reranker-v2-gemma',
-                               use_fp16=True)
 
     def search_colbert_index(self, query: str, high_level_summary: str = None, unique_file_ids: List[str] = None,
                              source_count: int = None) -> dict or None:
@@ -205,7 +202,12 @@ class ColbertLocal():
         file_data["result"] = None
         self.add_documents_to_index(file_data)
 
+    reranker = None
     def do_reasonable_reranking(self, query, res):
+        if self.reranker is None:
+            self.reranker = FlagLLMReranker('BAAI/bge-reranker-v2-gemma',
+                                                       use_fp16=True)
+
         rerank_score = self.reranker.compute_score([(query, chunk["content"]) for chunk in res],
                                                    max_length=8192,
                                                    batch_size=1,

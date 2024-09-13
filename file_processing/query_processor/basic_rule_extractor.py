@@ -2,13 +2,17 @@
 import logging
 from typing import List
 
+"""
+Thanks for the idea, info and classes:
+https://python.langchain.com/v0.1/docs/modules/data_connection/retrievers/self_query/
+"""
+
 if __name__ == "__main__":
     from dotenv import load_dotenv
 
     load_dotenv()
     logging.basicConfig(level=logging.INFO)
 
-from langchain_core.structured_query import Operator, Comparator
 from langchain_core.utils.json import parse_json_markdown
 
 from file_processing.document_processor.llm_chat_support import chat_model

@@ -60,11 +60,11 @@ def get_all_files_queue() -> dict:
     with connection.cursor() as cursor:
         cursor.execute("SELECT file_uuid, status, result FROM file_queue")
         res = cursor.fetchall()
-        if res and all(file_queue_item[1] == 'done' for file_queue_item in res):
+        if res:
             return {"files": [{"file_uuid": file_queue_item[0],
                                "status": file_queue_item[1],
                                "result": json.loads(file_queue_item[2])}
-                    for file_queue_item in res]}
+                    for file_queue_item in res if file_queue_item[1] == 'done']}
         else:
             return {"status": "pending"}
 

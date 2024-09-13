@@ -124,10 +124,12 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         "uuid_items": uuid_items,
         "file_uuid": str(file_uuid)
     }
-    await sync_to_async(colber_local.add_documents_to_index)([out])
-
     # Convert the dictionary to JSON
     out_json = json.dumps(out, indent=4)
+
+    await sync_to_async(set_file_status)(str(file_uuid), 'preliminary', out_json)
+
+    await sync_to_async(colber_local.add_documents_to_index)([out])
 
     queue_id = await sync_to_async(set_file_status)(str(file_uuid), 'done', out_json)
     # delete temp_pdf_received if exists

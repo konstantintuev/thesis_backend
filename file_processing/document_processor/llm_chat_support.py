@@ -4,6 +4,7 @@ import time
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_groq import ChatGroq
 from langchain_openai import AzureChatOpenAI
+from langchain_together import ChatTogether
 
 from raptor.raptor import BaseSummarizationModel
 
@@ -105,6 +106,7 @@ class SummarizerGroq(BaseSummarizationModel):
                 return e
 
 
+# Default
 chat_model = AzureChatOpenAI(
     openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
     azure_deployment=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),
@@ -112,6 +114,7 @@ chat_model = AzureChatOpenAI(
     openai_api_key=os.environ.get("AZURE_GPT_4o_API_KEY"),
 )
 
+# Make it keep to the rules - https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/advanced-prompt-engineering?pivots=programming-language-chat-completions#temperature-and-top_p-parameters
 model_concrete = AzureChatOpenAI(
     openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
     azure_deployment=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),
@@ -120,6 +123,7 @@ model_concrete = AzureChatOpenAI(
     temperature=0.2
 )
 
+# RankGPT - just reorder
 model_no_imagination = AzureChatOpenAI(
     openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
     azure_deployment=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),
@@ -128,12 +132,22 @@ model_no_imagination = AzureChatOpenAI(
     temperature=0
 )
 
+# Make it think - traditional temp - https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/advanced-prompt-engineering?pivots=programming-language-chat-completions#temperature-and-top_p-parameters
 model_abstract = AzureChatOpenAI(
     openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
     azure_deployment=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),
     azure_endpoint=os.environ.get("AZURE_GPT_4o_ENDPOINT"),
     openai_api_key=os.environ.get("AZURE_GPT_4o_API_KEY"),
     temperature=0.7
+)
+
+# RankGPT - just reorder
+llama_8b_llm = ChatTogether(
+    model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    temperature=0,
+    max_tokens=None,
+    timeout=None,
+    max_retries=2,
 )
 
 
