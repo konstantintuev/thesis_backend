@@ -5,8 +5,9 @@ import re
 import psutil
 from ragatouille import RAGPretrainedModel
 from FlagEmbedding import LayerWiseFlagLLMReranker
-from operator import itemgetter
+from operator import itemgetter, attrgetter
 from FlagEmbedding import FlagLLMReranker
+from together import Together
 
 from file_processing.document_processor.rank_gpt import RankGPTRanker
 from file_processing.document_processor.semantic_text_splitter import uuid_pattern
@@ -117,6 +118,16 @@ class ColbertLocal():
                             device='mps')
     """
 
+    def normalize(self, values):
+        min_val = min(values)
+        max_val = max(values)
+
+        # Avoid division by zero if all values are the same
+        if min_val == max_val:
+            return [0.5] * len(values)
+
+        return [(x - min_val) / (max_val - min_val) for x in values]
+
     def search_colbert_index(self, query: str, high_level_summary: str = None, unique_file_ids: List[str] = None,
                              source_count: int = None) -> dict or None:
         if not os.path.exists(self.index_path):
@@ -178,13 +189,19 @@ class ColbertLocal():
                                                      f"{high_level_summary}")
         """
 
+
+
         if source_count and source_count < 10:
-            #return self.do_reasonable_reranking(query, res)
-            return self.do_crazy_reranking(query, res)
+            # return self.do_reasonable_reranking(query, res)
+            # return self.do_llm_reranking(query, res)
+            return self.do_llama_rerank(query, res)
+
+        scores = self.normalize([chunk["score"] for chunk in res])
 
         reranked = [{
             # "content": chunk["content"],
-            "score": chunk["score"] / 100,
+            "score": scores[index],
+            "unnormal_score": chunk["score"],
             "rank": chunk["rank"],
             # "rerank_score": rerank_score[index],
             "passage_id": chunk["passage_id"],
@@ -229,7 +246,7 @@ class ColbertLocal():
 
         return reranked_order
 
-    def do_crazy_reranking(self, query, res):
+    def do_llm_reranking(self, query, res):
         from rerankers.documents import Document
         crazy_reranker = RankGPTRanker()
         reranked_orig = crazy_reranker.rank(query, [
@@ -237,13 +254,14 @@ class ColbertLocal():
             for chunk in res
         ])
 
-
+        scores = self.normalize([chunk["score"] for chunk in res])
 
         reranked = [{
             "content": chunk["content"],
             "orig_rank": reranked_orig.get_result_by_docid(chunk["passage_id"]).rank,
             "rank": chunk["rank"],
-            "score": chunk["score"] / 100,
+            "score": scores[index],
+            "unnormal_score": chunk["score"],
             "passage_id": chunk["passage_id"],
             "document_metadata": chunk["document_metadata"]
         } for index, chunk in enumerate(res)]
@@ -254,6 +272,36 @@ class ColbertLocal():
             reranked_order = reranked_order[:-4]
 
         return reranked_order
+
+    client = Together()
+
+    def do_llama_rerank(self, query, res):
+        response = self.client.rerank.create(
+            # Based on Llama 3 8b - can't get better than this
+            # Thank you salesforce: https://blog.salesforceairesearch.com/llamarank/
+            # But is closed source for now! -> nice alternative above
+            model="Salesforce/Llama-Rank-V1",
+            query=query,
+            documents=[chunk["content"] for chunk in res]
+        )
+
+        response.results.sort(key=attrgetter('index'))
+
+        reranked = [{
+            "content": chunk["content"],
+            "orig_score": chunk["score"],
+            "rank": chunk["rank"],
+            "score": response.results[index].relevance_score,
+            "passage_id": chunk["passage_id"],
+            "document_metadata": chunk["document_metadata"]
+        } for index, chunk in enumerate(res)]
+
+        reranked.sort(key=itemgetter('score'), reverse=True)
+
+        if len(reranked) >= 8:
+            reranked = reranked[:-4]
+
+        return reranked
 
 
 colber_local = ColbertLocal()
