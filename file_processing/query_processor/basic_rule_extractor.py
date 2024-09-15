@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
 from langchain_core.utils.json import parse_json_markdown
 
-from file_processing.document_processor.llm_chat_support import chat_model
+from file_processing.llm_chat_support import chat_model
 from langchain.chains.query_constructor.base import (
     _format_attribute_info,
 )

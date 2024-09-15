@@ -1,14 +1,10 @@
 import logging
-import os
-import time
 import uuid
 from typing import List
 
 import numpy as np
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
-from langchain_core.messages import HumanMessage, SystemMessage
 
-from file_processing.document_processor.llm_chat_support import SummarizerGroq, SummarizerAzureGPT
+from file_processing.llm_chat_support import SummarizerAzureGPT
 from file_processing.embeddings import embeddings_model, pending_embeddings_singleton
 from file_processing.document_processor.summarisation_utils import chunk_into_semantic_chapters
 
@@ -21,10 +17,7 @@ if __name__ == "__main__":
 from langchain_together.embeddings import TogetherEmbeddings
 from tenacity import wait_random_exponential, stop_after_attempt, retry
 
-from raptor.raptor import RetrievalAugmentation, RetrievalAugmentationConfig, SBertEmbeddingModel
-
-from raptor.raptor import BaseSummarizationModel
-from langchain_core.prompts import ChatPromptTemplate
+from raptor.raptor import RetrievalAugmentation, RetrievalAugmentationConfig
 
 from raptor.raptor import BaseQAModel
 

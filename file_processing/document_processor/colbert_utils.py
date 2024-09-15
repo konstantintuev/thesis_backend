@@ -13,6 +13,7 @@ from file_processing.document_processor.rank_gpt import RankGPTRanker
 from file_processing.document_processor.semantic_text_splitter import uuid_pattern
 from file_processing.document_processor.types_local import UUIDExtractedItemDict
 from file_processing.file_queue_management.file_queue_db import get_file_from_queue, get_all_files_queue
+from file_processing.query_processor.process_search_query import rewrite_search_query_based_on_history
 
 
 def add_uuid_object_to_string(match, uuid_items: UUIDExtractedItemDict):
@@ -109,14 +110,7 @@ class ColbertLocal():
             )
             self.colbert_model: RAGPretrainedModel = RAGPretrainedModel.from_index(self.index_path, n_gpu=0)
 
-    """
-    Reranker proved to have marginal improvement at best at the cost of 2 mins per query
-    Keeping the code here if better research comes out, but disabled for now
-    ------------------------------------------------------------------------------------
-    reranker = LayerWiseFlagLLMReranker('BAAI/bge-reranker-v2-minicpm-layerwise',
-                            use_fp16=True,
-                            device='mps')
-    """
+
 
     def normalize(self, values):
         min_val = min(values)
@@ -128,8 +122,11 @@ class ColbertLocal():
 
         return [(x - min_val) / (max_val - min_val) for x in values]
 
-    def search_colbert_index(self, query: str, high_level_summary: str = None, unique_file_ids: List[str] = None,
-                             source_count: int = None) -> dict or None:
+    def search_colbert_index(self, query: str,
+                             high_level_summary: str = None,
+                             unique_file_ids: List[str] = None,
+                             source_count: int = None,
+                             previous_queries: List[str] = None) -> dict or None:
         if not os.path.exists(self.index_path):
             return {"error": "No files indexed!"}
         # 'colbert_model.search' returns a list of dictionaries with the following structure:
@@ -160,35 +157,6 @@ class ColbertLocal():
             k=internal_source_count,
             doc_ids=unique_file_ids
         )
-        """
-        Tested with:
-        Eval raw Colbert (jinaai/jina-colbert-v1-en; Passage) 
-         vs Colbert + Rerank (BAAI/bge-reranker-v2-minicpm-layerwise, 28 layers; Passage V2; Standard Prompt) 
-         vs Colbert + Rerank(BAAI/bge-reranker-v2-minicpm-layerwise, 28 layers; Passage V3 prompt with context)
-         vs lastest below Colbert + Rerank(BAAI/bge-reranker-v2-minicpm-layerwise, 28 layers; Passage V4 prompt with better integration of context)
-
-        Evalueted retrieval manually + https://chatgpt.com/c/66b32b82-08b1-4e63-bbb9-918e43521dc2
-
-        File: 2312.05934v3.pdf
-        Query: What are some innovative uses for large language models (LLMs)?
-        high_level_summary: "The text evaluates three models (Llama2-7B, Mistral-7B, and Orca2-7B) and an embedding model (bge-large-en) for a question-answering system, using unsupervised learning and special tokens to preserve document structure. RAG outperforms fine-tuning in a knowledge injection study for large language models (LLMs), measuring their ability to answer factual questions accurately. The study found RAG more effective in learning new information, with fine-tuning focusing on overall response quality rather than knowledge breadth. The text also discusses various strategies for fine-tuning LLMs, including reinforcement learning and unsupervised fine-tuning methods. Paraphrasing tasks and scenarios demonstrate models' abilities to infer correct answers based on reasoning and prior knowledge. The knowledge injection framework has limitations, primarily evaluating factual information and not accounting for other quality metrics."
-
-        The https://huggingface.co/jinaai/jina-colbert-v1-en model is also noted by the original research
-          to be almost as good as the rerankers BGE and MiniLM-L-6-v2 (BAAI/bge-reranker-v2-minicpm-layerwise is based on that model too).
-
-        ---------------------------------------------------------------------------------------------------------------------
-
-        res = [chunk for chunk in res if chunk["document_metadata"]["doc_id"] == "c8978a17-7d35-4d5a-977e-c295ab5e16b1"]
-
-        rerank_score = reranker.compute_score([(query, chunk["content"]) for chunk in res],
-                                              max_length=8190,
-                                              batch_size=25,
-                                              cutoff_layers=28,
-                                              prompt="Given a query A and a passage B, determine whether the passage contains an answer to the query by providing a prediction of either 'Yes' or 'No'.\n" +
-                                                     "This is a high-level summary of the document, use it only as additional context if there is any uncertainty about the content of any of the passages, don't use it to evaluate relevance:\n" +
-                                                     f"{high_level_summary}")
-        """
-
 
 
         if source_count and source_count < 10:

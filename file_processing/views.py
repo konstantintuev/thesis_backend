@@ -36,6 +36,7 @@ from file_processing.document_processor.raptor_utils import custom_config, tree_
 from file_processing.file_queue_management.file_queue_db import add_file_to_queue, get_file_from_queue, set_file_status, \
     add_multiple_files_to_queue, get_multiple_files_queue
 from file_processing.query_processor.basic_rule_extractor import query_to_structured_filter
+from file_processing.query_processor.process_search_query import rewrite_search_query_based_on_history
 from raptor.raptor import RetrievalAugmentation
 
 nest_asyncio.apply()
@@ -268,10 +269,11 @@ def search_query(request):
             high_level_summary = data.get('high_level_summary', None)
             unique_file_ids = data.get('unique_file_ids', None)
             source_count = data.get('source_count', None)
+            previous_queries = data.get('previous_queries', None)
             if query_text is None:
                 return JsonResponse({"error": "Query not provided!"}, status=400)
 
-            res = colber_local.search_colbert_index(query_text, high_level_summary, unique_file_ids, source_count)
+            res = colber_local.search_colbert_index(query_text, high_level_summary, unique_file_ids, source_count, previous_queries)
             return JsonResponse(res,
                                 status=(200 if isinstance(res, list) or res["error"] is None else 400),
                                 # 'Safe' serialises only dicts and we have a list here
@@ -362,3 +364,24 @@ def text_2_query(request):
             return JsonResponse({"error": str(e)}, status=500)
     else:
         return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+@csrf_exempt
+def rewrite_query(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            query_text = data.get('query', None)
+            previous_queries = data.get('previous_queries', None)
+            if query_text is None or previous_queries is None:
+                return JsonResponse({"error": "Queries not provided!"}, status=400)
+
+            res = rewrite_search_query_based_on_history(query_text, previous_queries)
+            return HttpResponse(res,
+                                status=200)
+        except json.JSONDecodeError:
+            return HttpResponse("Invalid JSON", status=400)
+        except Exception as e:
+            return HttpResponse(str(e), status=500)
+    else:
+        return HttpResponse("Invalid request method", status=405)

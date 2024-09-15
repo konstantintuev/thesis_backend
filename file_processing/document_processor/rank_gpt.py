@@ -18,7 +18,7 @@ from rerankers.documents import Document
 from rerankers.results import RankedResults, Result
 from rerankers.utils import vprint, prep_docs
 
-from file_processing.document_processor.llm_chat_support import model_no_imagination, llama_8b_llm
+from file_processing.llm_chat_support import llama_8b_llm
 
 
 def get_prefix_prompt(query, num):

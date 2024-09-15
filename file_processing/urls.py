@@ -11,4 +11,5 @@ urlpatterns = [
     path('search_query', views.search_query, name='search_query'),
     path('available_processors', views.get_available_processors, name='available_processors'),
     path('text_2_query', views.text_2_query, name='text_2_query'),
+    path('rewrite_query', views.rewrite_query, name='rewrite_query')
 ]

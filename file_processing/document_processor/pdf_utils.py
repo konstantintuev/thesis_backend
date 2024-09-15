@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import fitz
 import tiktoken
 
-from file_processing.document_processor.llm_chat_support import model_abstract
+from file_processing.llm_chat_support import model_abstract
 
 """Sample:
 {

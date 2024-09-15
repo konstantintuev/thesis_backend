@@ -5,7 +5,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel
 
-from file_processing.document_processor.llm_chat_support import model_concrete
+from file_processing.llm_chat_support import model_concrete
 from file_processing.document_processor.md_parser import extract_code_blocks
 from file_processing.document_processor.pdf_utils import split_pdf
 from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
