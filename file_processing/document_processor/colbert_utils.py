@@ -126,7 +126,7 @@ class ColbertLocal():
                              high_level_summary: str = None,
                              unique_file_ids: List[str] = None,
                              source_count: int = None,
-                             previous_queries: List[str] = None) -> dict or None:
+                             no_reranking: bool = False) -> dict or None:
         if not os.path.exists(self.index_path):
             return {"error": "No files indexed!"}
         # 'colbert_model.search' returns a list of dictionaries with the following structure:
@@ -147,7 +147,7 @@ class ColbertLocal():
             return []
 
         internal_source_count = (source_count if source_count else 100)
-        if internal_source_count < 10:
+        if internal_source_count < 10 and not no_reranking:
             # For reranking of last few
             internal_source_count += 4
 
@@ -159,7 +159,7 @@ class ColbertLocal():
         )
 
 
-        if source_count and source_count < 10:
+        if source_count and source_count < 10 and not no_reranking:
             # return self.do_reasonable_reranking(query, res)
             # return self.do_llm_reranking(query, res)
             return self.do_llama_rerank(query, res)

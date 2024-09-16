@@ -142,9 +142,17 @@ model_abstract = AzureChatOpenAI(
 )
 
 # RankGPT - just reorder
-llama_8b_llm = ChatTogether(
+llama_8b_llm_no_imagination = ChatTogether(
     model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
     temperature=0,
+    max_tokens=None,
+    timeout=None,
+    max_retries=2,
+)
+
+llama_8b_llm_concrete = ChatTogether(
+    model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    temperature=0.2,
     max_tokens=None,
     timeout=None,
     max_retries=2,

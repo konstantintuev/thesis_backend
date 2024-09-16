@@ -1,47 +1,40 @@
 import asyncio
-import datetime
 import json
+import os
 import re
 import tempfile
 import threading
 import uuid
-from asyncio import as_completed
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
-import fitz  #PyMuPDF
+import aiofiles
 import magic
+import nest_asyncio
 import requests
 from asgiref.sync import async_to_sync, sync_to_async
-from django.shortcuts import render
-
 # Create your views here.
 from django.http import HttpResponse, JsonResponse
-import nest_asyncio
 from django.views.decorators.csrf import csrf_exempt
-import os
-import aiofiles
 from langchain.chains.query_constructor.schema import AttributeInfo
 
-from file_processing.document_processor.basic_text_processing_utils import concat_chunks
+from file_processing.document_processor.advanced_filters import ask_file_llm
 from file_processing.document_processor.colbert_utils import colber_local, add_uuid_object_to_string
+from file_processing.document_processor.md_parser import semantic_markdown_chunks
 from file_processing.document_processor.pdf_parsers import pdf_to_md_by_type
-from file_processing.document_processor.semantic_text_splitter import uuid_pattern
-from file_processing.embeddings import PendingLangchainEmbeddings, embeddings_model, \
-    pending_embeddings_singleton
-from file_processing.document_processor.md_parser import semantic_markdown_chunks, html_to_plain_text
 from file_processing.document_processor.pdf_utils import PDFMetadata, get_filename_from_url
-from file_processing.document_processor.summarisation_utils import chunk_into_semantic_chapters
 from file_processing.document_processor.raptor_utils import custom_config, tree_to_dict
-from file_processing.file_queue_management.file_queue_db import add_file_to_queue, get_file_from_queue, set_file_status, \
+from file_processing.document_processor.semantic_text_splitter import uuid_pattern
+from file_processing.document_processor.summarisation_utils import chunk_into_semantic_chapters
+from file_processing.embeddings import embeddings_model, \
+    pending_embeddings_singleton
+from file_processing.file_queue_management.file_queue_db import get_file_from_queue, set_file_status, \
     add_multiple_files_to_queue, get_multiple_files_queue
 from file_processing.query_processor.basic_rule_extractor import query_to_structured_filter
 from file_processing.query_processor.process_search_query import rewrite_search_query_based_on_history
 from raptor.raptor import RetrievalAugmentation
 
 nest_asyncio.apply()
-
-from llama_parse import LlamaParse
 
 
 def index(request):
@@ -269,11 +262,15 @@ def search_query(request):
             high_level_summary = data.get('high_level_summary', None)
             unique_file_ids = data.get('unique_file_ids', None)
             source_count = data.get('source_count', None)
-            previous_queries = data.get('previous_queries', None)
+            no_reranking = data.get('no_reranking', False)
             if query_text is None:
                 return JsonResponse({"error": "Query not provided!"}, status=400)
 
-            res = colber_local.search_colbert_index(query_text, high_level_summary, unique_file_ids, source_count, previous_queries)
+            res = colber_local.search_colbert_index(query_text,
+                                                    high_level_summary,
+                                                    unique_file_ids,
+                                                    source_count,
+                                                    no_reranking)
             return JsonResponse(res,
                                 status=(200 if isinstance(res, list) or res["error"] is None else 400),
                                 # 'Safe' serialises only dicts and we have a list here
@@ -385,3 +382,25 @@ def rewrite_query(request):
             return HttpResponse(str(e), status=500)
     else:
         return HttpResponse("Invalid request method", status=405)
+
+@csrf_exempt
+def ask_file(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            query = data.get('query', None)
+            file_sections = data.get('file_sections', None)
+            if query is None or file_sections is None:
+                return JsonResponse({"error": "Query or file sections not provided!"}, status=400)
+
+            res = ask_file_llm(query, file_sections)
+            return JsonResponse(res.dict(),
+                                status=200,
+                                # 'Safe' serialises only dicts and we should have a list here
+                                safe=False)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"error": "Invalid request method"}, status=405)

@@ -18,7 +18,7 @@ from rerankers.documents import Document
 from rerankers.results import RankedResults, Result
 from rerankers.utils import vprint, prep_docs
 
-from file_processing.llm_chat_support import llama_8b_llm
+from file_processing.llm_chat_support import llama_8b_llm_no_imagination
 
 
 def get_prefix_prompt(query, num):
@@ -122,7 +122,7 @@ class RankGPTRanker(BaseRanker):
         self.lang = lang
 
     def _query_llm(self, messages: List[Dict[str, str]]) -> str:
-        response = llama_8b_llm.invoke(messages)
+        response = llama_8b_llm_no_imagination.invoke(messages)
         return response.content
 
     def rank(
