@@ -1,11 +1,15 @@
+import json
 import os
 import time
 from enum import Enum
+from typing import List
 
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.utils.json import parse_json_markdown
 from langchain_groq import ChatGroq
 from langchain_openai import AzureChatOpenAI
 from langchain_together import ChatTogether
+from together import Together
 
 from raptor.raptor import BaseSummarizationModel
 
@@ -162,7 +166,7 @@ llama_8b_llm_concrete = ChatTogether(
 
 llama_8b_llm_abstract = ChatTogether(
     model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
-    temperature=0.2,
+    temperature=0.7,
     max_tokens=None,
     timeout=None,
     max_retries=2,
@@ -176,11 +180,29 @@ llama_8b_llm_crazy = ChatTogether(
     max_retries=2,
 )
 
+together = Together()
+
 class LLMTemp(Enum):
     NO_IMAGINATION = 0
     CONCRETE = 1
     ABSTRACT = 2
     CRAZY = 3
+
+def small_llm_json_response(messages: List[dict]):
+    # TODO: JSON model for Llama 3.1 8b on together not yet supported
+    # json_llm = get_llm(LLMTemp.ABSTRACT, LLMTypes.SMALL_JSON_MODEL).bind(response_format={"type": "json_object"})
+
+    extract = together.chat.completions.create(
+        messages=messages,
+        model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+        response_format={
+            "type": "json_object",
+        },
+        temperature=0.7,
+    )
+
+    js = parse_json_markdown(extract.choices[0].message.content)
+    return js
 
 class LLMTypes(Enum):
     BIG_VISUAL_MODEL = 0

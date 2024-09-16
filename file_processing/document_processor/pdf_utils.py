@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import fitz
 import tiktoken
 
-from file_processing.llm_chat_support import get_llm, LLMTemp, LLMTypes
+from file_processing.llm_chat_support import get_llm, LLMTemp, LLMTypes, small_llm_json_response
 
 """Sample:
 {
@@ -197,6 +197,7 @@ class PDFMetadata:
             f"Average Words per Page: {self.avgWordsPerPage if self.avgWordsPerPage is not None else 'N/A'}\n"
             f"Word Count: {self.wordCount if self.wordCount is not None else 'N/A'}\n"
         )
+
     @staticmethod
     def merge_json(obj1, obj2):
         def get_new_key(existing_keys, base_key):
@@ -249,7 +250,7 @@ class PDFMetadata:
         2. Concat chapters up to context window (need tokeniser or rough statistic with leeway)
         3. Prompt for json metadata and extract like basic rule extractor
         """
-        context_window = 16000  #tokens
+        context_window = 16000  # tokens
         encoding = tiktoken.encoding_for_model('gpt-4o')
         semantic_chapter_tokens = [encoding.encode(chapter) for chapter in semantic_chapters]
         # Add all semantic_chapter_tokens up to context_window
@@ -266,20 +267,27 @@ class PDFMetadata:
         token_splits.append(encoding.decode(current_split))
         # Extract metadata from each split
         metadata = {}
-        json_llm = get_llm(LLMTemp.ABSTRACT, LLMTypes.SMALL_JSON_MODEL).bind(response_format={"type": "json_object"})
         for split in token_splits:
-            ai_msg = json_llm.invoke(
-                f"Given the following chapter:\n{split}\n\n"
-                "Return a JSON object with describing the most important characteristics of the chapter as metadata in form:\n"
-                "{ [short key describing the important characteristics]: \"key value\", ... }\n"
-                "When preparing the metadata json take inspiration from Industry 4.0 and metadata for manual of a digital twin!\n"
-                "Focus on product specifications and descriptions of processes. You can ignore irrelevant info!"
-            )
+            ai_msg_json = small_llm_json_response([
+                {
+                    "role": "system",
+                    "content": ("You a technical writer and need to create JSON metadata for a technical document.\n"
+                                "You are working chapter by chapter.\n"
+                                "Return a JSON object with describing the most important characteristics of the chapter as metadata in form:\n"
+                               "{ [short key describing the important characteristics]: \"key value\", ... }\n"
+                               "When preparing the metadata json take inspiration from Industry 4.0 and metadata for manual of a digital twin!\n"
+                               "Focus on product specifications and descriptions of processes. You can ignore irrelevant info!\n"
+                               "Only answer in JSON."),
+                },
+                {
+                    "role": "user",
+                    "content": f"Here is the chapter to process:\n{split}"
+                }
+            ])
 
             try:
-                json_object = json.loads(ai_msg.content)
                 # Data is written to metadata
-                PDFMetadata.merge_json(metadata, json_object)
+                PDFMetadata.merge_json(metadata, ai_msg_json)
             except ValueError as e:
                 pass  # invalid json
 
@@ -366,6 +374,7 @@ def split_pdf(input_pdf_path: str,
     pdf_document.close()
 
     return split_files
+
 
 if __name__ == '__main__':
     import argparse

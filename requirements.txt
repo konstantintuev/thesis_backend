@@ -81,3 +81,5 @@ peft
 langchain_community
 langchain_groq
 html2text
+together
+rerankers
