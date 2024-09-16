@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import fitz
 import tiktoken
 
-from file_processing.llm_chat_support import model_abstract
+from file_processing.llm_chat_support import get_llm, LLMTemp, LLMTypes
 
 """Sample:
 {
@@ -266,7 +266,7 @@ class PDFMetadata:
         token_splits.append(encoding.decode(current_split))
         # Extract metadata from each split
         metadata = {}
-        json_llm = model_abstract.bind(response_format={"type": "json_object"})
+        json_llm = get_llm(LLMTemp.ABSTRACT, LLMTypes.SMALL_JSON_MODEL).bind(response_format={"type": "json_object"})
         for split in token_splits:
             ai_msg = json_llm.invoke(
                 f"Given the following chapter:\n{split}\n\n"

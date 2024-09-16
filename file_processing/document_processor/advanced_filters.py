@@ -1,10 +1,9 @@
-import json
 from typing import List
 
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
-
-from file_processing.llm_chat_support import llama_8b_llm_concrete
 from langchain_core.pydantic_v1 import BaseModel, Field
+
+from file_processing.llm_chat_support import LLMTypes, LLMTemp, get_llm
 
 
 class AdvancedFilterSchema(BaseModel):
@@ -25,7 +24,7 @@ def ask_file_llm(query_text: str, file_sections: List[str]):
 
     chat_prompt = ChatPromptTemplate.from_messages([system_message_template, human_message_template])
 
-    structured_llm = llama_8b_llm_concrete.with_structured_output(AdvancedFilterSchema)
+    structured_llm = get_llm(LLMTemp.CONCRETE, LLMTypes.SMALL_JSON_MODEL).with_structured_output(AdvancedFilterSchema)
 
     rewrite_query = (chat_prompt | structured_llm)
 

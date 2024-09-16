@@ -13,12 +13,13 @@ changes - use langchain
 
 import copy
 from typing import Optional, Union, List, Dict
-from rerankers.models.ranker import BaseRanker
+
 from rerankers.documents import Document
+from rerankers.models.ranker import BaseRanker
 from rerankers.results import RankedResults, Result
 from rerankers.utils import vprint, prep_docs
 
-from file_processing.llm_chat_support import llama_8b_llm_no_imagination
+from file_processing.llm_chat_support import LLMTypes, LLMTemp, get_llm
 
 
 def get_prefix_prompt(query, num):
@@ -122,7 +123,7 @@ class RankGPTRanker(BaseRanker):
         self.lang = lang
 
     def _query_llm(self, messages: List[Dict[str, str]]) -> str:
-        response = llama_8b_llm_no_imagination.invoke(messages)
+        response = get_llm(LLMTemp.NO_IMAGINATION, LLMTypes.SMALL_JSON_MODEL).invoke(messages)
         return response.content
 
     def rank(

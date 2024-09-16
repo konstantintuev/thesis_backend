@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
 from langchain_core.utils.json import parse_json_markdown
 
-from file_processing.llm_chat_support import chat_model
+from file_processing.llm_chat_support import get_llm, LLMTemp
 from langchain.chains.query_constructor.base import (
     _format_attribute_info,
 )
@@ -231,7 +231,7 @@ def query_to_structured_filter(unstructured_query: str,
         query=unstructured_query
     ).replace("{{", "{").replace("}}", "}")
 
-    res = chat_model.invoke(MEGA_PROMPT + suffix)
+    res = get_llm(LLMTemp.ABSTRACT).invoke(MEGA_PROMPT + suffix)
     js = parse_json_markdown(res.content)
     if isinstance(js, dict):
         if len(js.get("filter", [])) > 0:

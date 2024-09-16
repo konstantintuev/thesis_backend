@@ -1,9 +1,8 @@
 from typing import List
 
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from file_processing.llm_chat_support import model_no_imagination
+from file_processing.llm_chat_support import LLMTemp, get_llm
 
 """
 Thank you https://github.com/langchain-ai/rag-from-scratch/blob/main/rag_from_scratch_5_to_9.ipynb
@@ -34,6 +33,6 @@ def rewrite_search_query_based_on_history(latest_question: str, previous_questio
         "Output:")
     prompt_decomposition = ChatPromptTemplate.from_template(template)
 
-    rewrite_query = (prompt_decomposition | model_no_imagination)
+    rewrite_query = (prompt_decomposition | get_llm(LLMTemp.NO_IMAGINATION))
 
     return rewrite_query.invoke({"questions": formatted_questions}).content

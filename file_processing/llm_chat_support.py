@@ -1,5 +1,6 @@
 import os
 import time
+from enum import Enum
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_groq import ChatGroq
@@ -106,12 +107,13 @@ class SummarizerGroq(BaseSummarizationModel):
                 return e
 
 
-# Default
-chat_model = AzureChatOpenAI(
+# Very imaginative
+chat_model_crazy = AzureChatOpenAI(
     openai_api_version=os.environ.get("AZURE_GPT_4o_API_VERSION"),
     azure_deployment=os.environ.get("AZURE_GPT_4o_DEPLOYMENT_NAME"),
     azure_endpoint=os.environ.get("AZURE_GPT_4o_ENDPOINT"),
     openai_api_key=os.environ.get("AZURE_GPT_4o_API_KEY"),
+    temperature=1
 )
 
 # Make it keep to the rules - https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/advanced-prompt-engineering?pivots=programming-language-chat-completions#temperature-and-top_p-parameters
@@ -158,6 +160,54 @@ llama_8b_llm_concrete = ChatTogether(
     max_retries=2,
 )
 
+llama_8b_llm_abstract = ChatTogether(
+    model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    temperature=0.2,
+    max_tokens=None,
+    timeout=None,
+    max_retries=2,
+)
+
+llama_8b_llm_crazy = ChatTogether(
+    model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    temperature=0.2,
+    max_tokens=None,
+    timeout=None,
+    max_retries=2,
+)
+
+class LLMTemp(Enum):
+    NO_IMAGINATION = 0
+    CONCRETE = 1
+    ABSTRACT = 2
+    CRAZY = 3
+
+class LLMTypes(Enum):
+    BIG_VISUAL_MODEL = 0
+    SMALL_JSON_MODEL = 1
+
+def get_llm(temp: LLMTemp, type: LLMTypes = LLMTypes.BIG_VISUAL_MODEL):
+    if temp == LLMTemp.NO_IMAGINATION:
+        if type == LLMTypes.BIG_VISUAL_MODEL:
+            return model_no_imagination
+        elif type == LLMTypes.SMALL_JSON_MODEL:
+            return llama_8b_llm_no_imagination
+    elif temp == LLMTemp.CONCRETE:
+        if type == LLMTypes.BIG_VISUAL_MODEL:
+            return model_concrete
+        elif type == LLMTypes.SMALL_JSON_MODEL:
+            return llama_8b_llm_concrete
+    elif temp == LLMTemp.ABSTRACT:
+        if type == LLMTypes.BIG_VISUAL_MODEL:
+            return model_abstract
+        elif type == LLMTypes.SMALL_JSON_MODEL:
+            return llama_8b_llm_abstract
+    elif temp == LLMTemp.CRAZY:
+        if type == LLMTypes.BIG_VISUAL_MODEL:
+            return chat_model_crazy
+        elif type == LLMTypes.SMALL_JSON_MODEL:
+            return llama_8b_llm_crazy
+
 
 class SummarizerAzureGPT(BaseSummarizationModel):
     def summarize(self, context, stop_sequence=None, retry_delay=5):
@@ -183,7 +233,7 @@ class SummarizerAzureGPT(BaseSummarizationModel):
                          f"specific part chosen subsequently. Here is the batch"
                          f"with the text sections to be summarized:\n\n{context}")
 
-                resp = chat_model.invoke([
+                resp = get_llm(LLMTemp.ABSTRACT).invoke([
                     SystemMessage(content=system),
                     HumanMessage(content=human)
                 ])
