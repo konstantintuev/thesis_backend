@@ -5,7 +5,7 @@ from typing import List
 import numpy as np
 
 from file_processing.llm_chat_support import SummarizerAzureGPT
-from file_processing.embeddings import embeddings_model, pending_embeddings_singleton
+from file_processing.embeddings import pending_embeddings_singleton
 from file_processing.document_processor.summarisation_utils import chunk_into_semantic_chapters
 
 if __name__ == "__main__":
@@ -71,19 +71,6 @@ class TogetherEmbeddingModel(BaseEmbeddingModel):
                 return embedding_list
             except Exception as e:
                 print(e)
-
-
-class BGE3EmbeddingModel(BaseEmbeddingModel):
-    def __init__(self):
-        self.model = embeddings_model
-
-    @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
-    def create_embedding(self, text):
-        return self.model.embed_documents([text])[0]
-
-    @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
-    def create_embeddings(self, texts: List[str]) -> List[List[float]]:
-        return self.model.embed_documents(texts)
 
 
 class LangchainPendingEmbeddingModel(BaseEmbeddingModel):

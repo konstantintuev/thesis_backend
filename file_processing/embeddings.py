@@ -36,8 +36,6 @@ class BGEM3Flag(Embeddings):
         """Embed query text."""
         return self.model.encode(text, batch_size=self.get_batch_size())['dense_vecs'].tolist()
 
-embeddings_model = BGEM3Flag()
-
 """
 model_kwargs = {"device": "mps"}
 encode_kwargs = {"normalize_embeddings": True}
@@ -90,14 +88,16 @@ class _TimerReset(threading.Thread):
 
 
 class PendingLangchainEmbeddings(Embeddings):
-    def __init__(self, model: Embeddings, initial_interval: int = 10, subsequent_interval: int = 5):
-        self.model = model
+    def __init__(self, initial_interval: int = 10, subsequent_interval: int = 5):
         self.initial_interval = initial_interval
         self.subsequent_interval = subsequent_interval
         self.lock = threading.Lock()
         self.pending_requests = OrderedDict()
         self.timer = TimerReset(self.initial_interval, self._process_queue)
         self.timer.start()
+
+    def init_mode(self, model: Embeddings):
+        self.model = model
 
     def _process_queue(self):
         with self.lock:
@@ -150,5 +150,4 @@ class PendingLangchainEmbeddings(Embeddings):
         """Embed query text."""
         return self.model.embed_query(text)
 
-
-pending_embeddings_singleton = PendingLangchainEmbeddings(embeddings_model)
+pending_embeddings_singleton = PendingLangchainEmbeddings()

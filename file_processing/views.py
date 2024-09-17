@@ -27,13 +27,12 @@ from file_processing.document_processor.pdf_utils import PDFMetadata, get_filena
 from file_processing.document_processor.raptor_utils import custom_config, tree_to_dict
 from file_processing.document_processor.semantic_text_splitter import uuid_pattern
 from file_processing.document_processor.summarisation_utils import chunk_into_semantic_chapters
-from file_processing.embeddings import embeddings_model, \
-    pending_embeddings_singleton
+from file_processing.embeddings import pending_embeddings_singleton
 from file_processing.file_queue_management.file_queue_db import get_file_from_queue, set_file_status, \
     add_multiple_files_to_queue, get_multiple_files_queue
 from file_processing.query_processor.basic_rule_extractor import query_to_structured_filter
 from file_processing.query_processor.process_search_query import rewrite_search_query_based_on_history
-from file_processing.query_processor.rerankers_local import do_colbert_rerank, do_llama_rerank
+from file_processing.query_processor.rerankers_local import rerankers_instance
 from raptor.raptor import RetrievalAugmentation
 
 nest_asyncio.apply()
@@ -228,7 +227,7 @@ async def generate_embeddings(request):
             if isinstance(input_texts, str):
                 input_texts = [input_texts]
 
-            all_embeddings = [embeddings_model.embed_query(input_text) for input_text in input_texts]
+            all_embeddings = [pending_embeddings_singleton.embed_query(input_text) for input_text in input_texts]
             embeddings = [
                 {
                     "object": "embedding",
@@ -421,9 +420,9 @@ def rerank_results(request):
 
             # We either reduce 8 chunks to 4 (RAG) OR 150 to 100 (file search)
             if len(res) <= 8:
-                res = do_llama_rerank(query=query_text, res=res, reorder=reorder)
+                res = rerankers_instance.do_llama_rerank(query=query_text, res=res, reorder=reorder)
             else:
-                res = do_colbert_rerank(query=query_text, res=res, reorder=reorder)
+                res = rerankers_instance.do_colbert_rerank(query=query_text, res=res, reorder=reorder)
 
             return JsonResponse(res,
                                 status=(200 if isinstance(res, list) else 400),

@@ -1,26 +1,16 @@
 from operator import attrgetter, itemgetter
 
-import numpy
 import torch
 from FlagEmbedding import FlagLLMReranker
 from colbert import Checkpoint
 from colbert.infra import ColBERTConfig
-from colbert.modeling.colbert import colbert_score
+from pylate import rank
 from together import Together
 from transformers import is_torch_npu_available
 
+from file_processing.document_processor.colbert_utils_pylate import colbert_local, normalize
 from file_processing.document_processor.rank_gpt import RankGPTRanker
 
-
-def normalize(values):
-    min_val = min(values)
-    max_val = max(values)
-
-    # Avoid division by zero if all values are the same
-    if min_val == max_val:
-        return [0.5] * len(values)
-
-    return [(x - min_val) / (max_val - min_val) for x in values]
 
 class RerankersLocal():
     reranker = None
@@ -128,24 +118,37 @@ class RerankersLocal():
         ckpt = ckpt.to(device)
         return ckpt
 
-    ckpt = None
-
     # Cheap and efficient
     def do_colbert_rerank(self, query, res, reorder):
-        Q = self.ckpt.queryFromText([query])
-        D = self.ckpt.docFromText([chunk["content"] for chunk in res], bsize=6, showprogress=True)[0]
-        D_mask = torch.ones(D.shape[:2], dtype=torch.long)
-        scores = colbert_score(Q, D, D_mask).flatten().cpu().numpy().tolist()
-        ranking = numpy.argsort(scores)[::-1].tolist()
+        queries_embeddings = colbert_local.model.encode(
+            [query],
+            is_query=True,
+            batch_size=colbert_local.get_batch_size()
+        )
+        documents_embeddings = colbert_local.model.encode(
+            [[chunk["content"] for chunk in res]],
+            is_query=False,
+            batch_size=colbert_local.get_batch_size()
+        )
 
-        scores = normalize(scores)
+
+        reranked_documents = rank.rerank(
+            documents_ids=[[i for i in range(len(res))]],
+            queries_embeddings=queries_embeddings,
+            documents_embeddings=documents_embeddings,
+        )[0] # [0] for just one query
+
+        reranked_documents.sort(key=itemgetter('id'))
+
+        scores = [chunk["score"] for chunk in reranked_documents]
+
+        scores_normal = normalize(scores)
 
         reranked = [{
             # Don't return content again
             # "content": chunk["content"],
-            "orig_score": chunk["score"],
-            "rank": ranking[index],
-            "score": scores[index],
+            "orig_score": scores[index],
+            "score": scores_normal[index],
             "passage_id": chunk["passage_id"],
             "document_metadata": chunk["document_metadata"]
         } for index, chunk in enumerate(res)]
@@ -156,7 +159,7 @@ class RerankersLocal():
         return reranked
 
     def init_rerankers(self):
-        self.ckpt = self.get_colbert()
+        pass
 
 
 rerankers_instance = RerankersLocal()

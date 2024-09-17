@@ -1,7 +1,7 @@
 from typing import List
 
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import Field, BaseModel
 
 from file_processing.llm_chat_support import LLMTypes, LLMTemp, get_llm
 

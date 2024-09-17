@@ -1,5 +1,6 @@
 import re
 from typing import List
+import numpy as np
 
 import torch
 from pylate import indexes, models, retrieve
@@ -8,7 +9,16 @@ from transformers import is_torch_npu_available
 from file_processing.document_processor.semantic_text_splitter import uuid_pattern
 from file_processing.document_processor.types_local import UUIDExtractedItemDict
 from file_processing.file_queue_management.file_queue_db import get_all_files_queue
-from file_processing.query_processor.rerankers_local import normalize
+
+def normalize(values):
+    min_val = min(values)
+    max_val = max(values)
+
+    # Avoid division by zero if all values are the same
+    if min_val == max_val:
+        return [0.5] * len(values)
+
+    return [(x - min_val) / (max_val - min_val) for x in values]
 
 
 def add_uuid_object_to_string(match, uuid_items: UUIDExtractedItemDict):
@@ -55,7 +65,7 @@ class ColbertLocal():
             document_length=8192,
             query_length=256,
             model_kwargs={
-                "torch_dtype": torch.float32
+                "torch_dtype": torch.float16
             }
         )
 
@@ -113,13 +123,18 @@ class ColbertLocal():
             batch_size=self.get_batch_size(),
             is_query=False,  # Encoding documents
             show_progress_bar=True,
-            precision="float32"
+            precision="float32",
+            convert_to_numpy=True
         )
+
+        # We use quantised float16 for the model as the gpu is a bit old - GTX 1080,
+        #   but pylate likes float32 and we don't want to quantise to int
+        embeddings = [embedding.astype(np.float32) for embedding in documents_embeddings]
 
         # Add the documents ids and embeddings to the Voyager index
         self.index.add_documents(
             documents_ids=document_ids,
-            documents_embeddings=documents_embeddings
+            documents_embeddings=embeddings
         )
 
 
@@ -147,31 +162,32 @@ class ColbertLocal():
 
         internal_source_count = (source_count if source_count else 100)
 
+        # It's a list of numpy arrays
         queries_embeddings = self.model.encode(
             [query],
             batch_size=self.get_batch_size(),
             is_query=True,  # Encoding queries
             show_progress_bar=True,
-            precision="float32"
+            precision="float32",
+            convert_to_numpy=True
         )
+
+        # We use quantised float16 for the model as the gpu is a bit old - GTX 1080,
+        #   but pylate likes float32
+        embeddings = [embedding.astype(np.float32) for embedding in queries_embeddings]
 
         res = self.retriever.retrieve(
-            queries_embeddings=queries_embeddings,
+            queries_embeddings=embeddings,
             k=internal_source_count,
         )
-
-        print(res)
 
         res = res[0]  # [0] as we have a single query
 
         scores_normal = normalize([chunk["score"] for chunk in res])
 
         reranked = [{
-            # "content": chunk["content"],
-            "score": scores_normal[index],
             "unnormal_score": chunk["score"],
-            # "rank": chunk["rank"],
-            # "rerank_score": rerank_score[index],
+            "score": scores_normal[index],
             "passage_id": chunk["id"]
         } for index, chunk in enumerate(res)]
 
