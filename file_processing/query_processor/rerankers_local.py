@@ -112,8 +112,7 @@ def do_llama_rerank(query, res, reorder):
 def get_colbert():
     config = ColBERTConfig(
         root="experiments",
-        gpus=1,
-        total_visible_gpus=1
+        gpus=1
     )
     use_fp16 = True
     if torch.cuda.is_available():
@@ -140,7 +139,7 @@ ckpt = get_colbert()
 # Cheap and efficient
 def do_colbert_rerank(query, res, reorder):
     Q = ckpt.queryFromText([query])
-    D = ckpt.docFromText([chunk["content"] for chunk in res], bsize=6)[0]
+    D = ckpt.docFromText([chunk["content"] for chunk in res], bsize=6, showprogress=True)[0]
     D_mask = torch.ones(D.shape[:2], dtype=torch.long)
     scores = colbert_score(Q, D, D_mask).flatten().cpu().numpy().tolist()
     ranking = numpy.argsort(scores)[::-1].tolist()
