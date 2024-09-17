@@ -19,7 +19,8 @@ from django.views.decorators.csrf import csrf_exempt
 from langchain.chains.query_constructor.schema import AttributeInfo
 
 from file_processing.document_processor.advanced_filters import ask_file_llm
-from file_processing.document_processor.colbert_utils import colber_local, add_uuid_object_to_string
+
+from file_processing.document_processor.colbert_utils_pylate import colbert_local, add_uuid_object_to_string
 from file_processing.document_processor.md_parser import semantic_markdown_chunks
 from file_processing.document_processor.pdf_parsers import pdf_to_md_by_type
 from file_processing.document_processor.pdf_utils import PDFMetadata, get_filename_from_url
@@ -123,10 +124,10 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     out_json = json.dumps(out, indent=4)
 
     # if colbert corrupts it's index, we can reacreate it
-    #await sync_to_async(set_file_status)(str(file_uuid), 'preliminary', out_json)
+    await sync_to_async(set_file_status)(str(file_uuid), 'preliminary', out_json)
 
     # TODO: Enable colbert again when it gets more stable
-    #await sync_to_async(colber_local.add_documents_to_index)([out])
+    await sync_to_async(colbert_local.add_documents_to_index)([out])
 
     queue_id = await sync_to_async(set_file_status)(str(file_uuid), 'done', out_json)
     # delete temp_pdf_received if exists
@@ -260,21 +261,18 @@ async def generate_embeddings(request):
 def search_query(request):
     if request.method == 'POST':
         try:
-            return JsonResponse({"error": "colbert too slow"}, status=500)
             data = json.loads(request.body)
             query_text = data.get('query', None)
             high_level_summary = data.get('high_level_summary', None)
             unique_file_ids = data.get('unique_file_ids', None)
             source_count = data.get('source_count', None)
-            no_reranking = data.get('no_reranking', False)
             if query_text is None:
                 return JsonResponse({"error": "Query not provided!"}, status=400)
 
-            res = colber_local.search_colbert_index(query_text,
+            res = colbert_local.search_colbert_index(query_text,
                                                     high_level_summary,
                                                     unique_file_ids,
-                                                    source_count,
-                                                    no_reranking)
+                                                    source_count)
             return JsonResponse(res,
                                 status=(200 if isinstance(res, list) or res["error"] is None else 400),
                                 # 'Safe' serialises only dicts and we have a list here

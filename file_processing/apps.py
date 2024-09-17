@@ -4,7 +4,7 @@ import os
 
 from django.apps import AppConfig
 
-from file_processing.document_processor.colbert_utils import colber_local
+from file_processing.document_processor.colbert_utils_pylate import colbert_local
 from file_processing.file_queue_management.file_queue_db import create_sqlite_database, get_all_files_queue
 from file_processing.storage_manager import delete_temp_dir
 
@@ -22,7 +22,7 @@ def load_document_trees():
                 content = file.read()
                 list_of_trees.append(json.loads(content))
     if len(list_of_trees) > 0:
-        colber_local.add_documents_to_index(list_of_trees)
+        colbert_local.add_documents_to_index(list_of_trees)
 
 def load_all_from_db():
     files = get_all_files_queue()["files"]
@@ -31,7 +31,7 @@ def load_all_from_db():
         file["uuid_items"] = file["result"]["uuid_items"]
         file["metadata"] = file["result"]["metadata"]
         file["result"] = None
-    colber_local.add_documents_to_index(files)
+    colbert_local.add_documents_to_index(files)
 
 
 class FileProcessingConfig(AppConfig):
@@ -46,8 +46,8 @@ class FileProcessingConfig(AppConfig):
             create_sqlite_database()
 
             # TODO: enable when colbert gets more stable
-            #load_all_from_db()
-            #colber_local.initialise_search_component()
+            load_all_from_db()
+            colbert_local.initialise_search_component()
             #load_document_trees()
 
             # test_colbert()
