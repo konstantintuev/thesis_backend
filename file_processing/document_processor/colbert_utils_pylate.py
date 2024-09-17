@@ -34,6 +34,9 @@ def add_uuid_object_to_string(match, uuid_items: UUIDExtractedItemDict):
 
 class ColbertLocal():
     def __init__(self):
+        pass
+
+    def init_model(self):
         use_fp16 = True
         if torch.cuda.is_available():
             device = "cuda"
@@ -45,14 +48,15 @@ class ColbertLocal():
             device = "cpu"
             use_fp16 = False
         self.model = models.ColBERT(
-            model_name_or_path="jinaai/jina-colbert-v2",
-            query_prefix="[QueryMarker]",
-            document_prefix="[DocumentMarker]",
+            model_name_or_path="jinaai/jina-colbert-v1-en",
             attend_to_expansion_tokens=True,
             trust_remote_code=True,
             device=device,
             document_length=8192,
-            query_length=256
+            query_length=256,
+            model_kwargs={
+                "torch_dtype": torch.float16
+            }
         )
 
         self.index = indexes.Voyager(
@@ -68,7 +72,7 @@ class ColbertLocal():
         pass
 
     def get_batch_size(self):
-        return 5
+        return 6
 
 
     """
@@ -152,7 +156,11 @@ class ColbertLocal():
         res = self.retriever.retrieve(
             queries_embeddings=queries_embeddings,
             k=internal_source_count,
-        )[0] # [0] as we have a single query
+        )
+
+        print(res)
+
+        res = res[0]  # [0] as we have a single query
 
         scores_normal = normalize([chunk["score"] for chunk in res])
 
