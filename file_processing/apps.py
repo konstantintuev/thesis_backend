@@ -47,8 +47,9 @@ class FileProcessingConfig(AppConfig):
             # This check ensure we run only once
             create_sqlite_database()
 
-            colbert_local.init_model()
-            #load_all_from_db()
+            if colbert_local.init_model():
+                # Need to restore index
+                load_all_from_db()
             colbert_local.initialise_search_component()
             rerankers_instance.init_rerankers()
             pending_embeddings_singleton.init_mode(BGEM3Flag())

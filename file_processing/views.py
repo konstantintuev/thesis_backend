@@ -429,7 +429,8 @@ def rerank_results(request):
                                 safe=False)
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON"}, status=400)
-        except Exception as e:
+        except BaseException as e:
+            print('An exception occurred: {}'.format(e))
             return JsonResponse({"error": str(e)}, status=500)
     else:
         return JsonResponse({"error": "Invalid request method"}, status=405)

@@ -93,31 +93,6 @@ class RerankersLocal():
 
         return reranked
 
-    def get_colbert(self):
-        config = ColBERTConfig(
-            root="experiments",
-            gpus=1
-        )
-        use_fp16 = True
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
-        elif is_torch_npu_available():
-            device = torch.device("npu")
-        else:
-            device = torch.device("cpu")
-            use_fp16 = False
-            config = ColBERTConfig(
-                root="experiments"
-            )
-
-        ckpt = Checkpoint("jinaai/jina-colbert-v1-en", colbert_config=config)
-        if use_fp16:
-            ckpt.half()
-        ckpt = ckpt.to(device)
-        return ckpt
-
     # Cheap and efficient
     def do_colbert_rerank(self, query, res, reorder):
         queries_embeddings = colbert_local.model.encode(
@@ -149,8 +124,7 @@ class RerankersLocal():
             # "content": chunk["content"],
             "orig_score": scores[index],
             "score": scores_normal[index],
-            "passage_id": chunk["passage_id"],
-            "document_metadata": chunk["document_metadata"]
+            "passage_id": chunk["passage_id"]
         } for index, chunk in enumerate(res)]
 
         if reorder:

@@ -57,6 +57,7 @@ class ColbertLocal():
         else:
             device = "cpu"
             use_fp16 = False
+
         self.model = models.ColBERT(
             model_name_or_path="jinaai/jina-colbert-v1-en",
             attend_to_expansion_tokens=True,
@@ -65,24 +66,40 @@ class ColbertLocal():
             document_length=8192,
             query_length=256,
             model_kwargs={
-                "torch_dtype": torch.float16
+                "torch_dtype": torch.float16 if use_fp16 else torch.float32
             }
         )
 
-        self.index = indexes.Voyager(
-            index_folder=".pylate-index",
-            index_name="index",
-            override=False,
-        )
+        try:
+            self.index = indexes.Voyager(
+                index_folder=".pylate-index",
+                index_name="index",
+                override=False,
+            )
 
-        self.retriever = retrieve.ColBERT(index=self.index)
+            self.retriever = retrieve.ColBERT(index=self.index)
+
+            return False
+        except BaseException as e:
+            print('An exception occurred: {}'.format(e))
+
+            self.index = indexes.Voyager(
+                index_folder=".pylate-index",
+                index_name="index",
+                override=True,
+            )
+
+            self.retriever = retrieve.ColBERT(index=self.index)
+
+            return True
 
     def initialise_search_component(self):
         self.search_colbert_index("Initialise the search component")
         pass
 
     def get_batch_size(self):
-        return 6
+        # Fit into 8GB of VRAM
+        return 3
 
 
     """
