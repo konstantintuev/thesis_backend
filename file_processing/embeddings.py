@@ -19,8 +19,7 @@ class BGEM3Flag(Embeddings):
         https://huggingface.co/BAAI/bge-m3
         """
         self.model = BGEM3FlagModel('BAAI/bge-m3',
-                                    use_fp16=True,
-                                    device=('mps' if torch.backends.mps.is_available() else 'cpu'))
+                                    use_fp16=True)
 
     def get_batch_size(self):
         if torch.backends.mps.is_available():

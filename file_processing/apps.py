@@ -25,13 +25,13 @@ def load_document_trees():
         colber_local.add_documents_to_index(list_of_trees)
 
 def load_all_from_db():
-    file_data = get_all_files_queue()["files"]
-    for file in file_data:
+    files = get_all_files_queue()["files"]
+    for file in files:
         file["tree"] = file["result"]["tree"]
         file["uuid_items"] = file["result"]["uuid_items"]
         file["metadata"] = file["result"]["metadata"]
         file["result"] = None
-    colber_local.add_documents_to_index(file_data)
+    colber_local.add_documents_to_index(files)
 
 
 class FileProcessingConfig(AppConfig):
@@ -44,8 +44,10 @@ class FileProcessingConfig(AppConfig):
             self.ran_once = True
             # This check ensure we run only once
             create_sqlite_database()
+
+            # TODO: enable when colbert gets more stable
             #load_all_from_db()
-            colber_local.initialise_search_component()
+            #colber_local.initialise_search_component()
             #load_document_trees()
 
             # test_colbert()

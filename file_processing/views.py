@@ -32,6 +32,7 @@ from file_processing.file_queue_management.file_queue_db import get_file_from_qu
     add_multiple_files_to_queue, get_multiple_files_queue
 from file_processing.query_processor.basic_rule_extractor import query_to_structured_filter
 from file_processing.query_processor.process_search_query import rewrite_search_query_based_on_history
+from file_processing.query_processor.rerankers_local import do_colbert_rerank, do_llama_rerank
 from raptor.raptor import RetrievalAugmentation
 
 nest_asyncio.apply()
@@ -121,9 +122,11 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     # Convert the dictionary to JSON
     out_json = json.dumps(out, indent=4)
 
-    await sync_to_async(set_file_status)(str(file_uuid), 'preliminary', out_json)
+    # if colbert corrupts it's index, we can reacreate it
+    #await sync_to_async(set_file_status)(str(file_uuid), 'preliminary', out_json)
 
-    await sync_to_async(colber_local.add_documents_to_index)([out])
+    # TODO: Enable colbert again when it gets more stable
+    #await sync_to_async(colber_local.add_documents_to_index)([out])
 
     queue_id = await sync_to_async(set_file_status)(str(file_uuid), 'done', out_json)
     # delete temp_pdf_received if exists
@@ -257,6 +260,7 @@ async def generate_embeddings(request):
 def search_query(request):
     if request.method == 'POST':
         try:
+            return JsonResponse({"error": "colbert too slow"}, status=500)
             data = json.loads(request.body)
             query_text = data.get('query', None)
             high_level_summary = data.get('high_level_summary', None)
@@ -397,6 +401,34 @@ def ask_file(request):
             return JsonResponse(res.dict(),
                                 status=200,
                                 # 'Safe' serialises only dicts and we should have a list here
+                                safe=False)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+@csrf_exempt
+def rerank_results(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            query_text: str = data.get('query', None)
+            res: List[dict] = data.get('res', None)
+            reorder: bool = data.get('reorder', False)
+            if query_text is None or res is None:
+                return JsonResponse({"error": "Query or res not provided!"}, status=400)
+
+            # We either reduce 8 chunks to 4 (RAG) OR 150 to 100 (file search)
+            if len(res) <= 8:
+                res = do_llama_rerank(query=query_text, res=res, reorder=reorder)
+            else:
+                res = do_colbert_rerank(query=query_text, res=res, reorder=reorder)
+
+            return JsonResponse(res,
+                                status=(200 if isinstance(res, list) else 400),
                                 safe=False)
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON"}, status=400)

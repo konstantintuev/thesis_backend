@@ -14,6 +14,7 @@ from file_processing.document_processor.semantic_text_splitter import uuid_patte
 from file_processing.document_processor.types_local import UUIDExtractedItemDict
 from file_processing.file_queue_management.file_queue_db import get_file_from_queue, get_all_files_queue
 from file_processing.query_processor.process_search_query import rewrite_search_query_based_on_history
+from file_processing.query_processor.rerankers_local import do_llama_rerank, normalize
 
 
 def add_uuid_object_to_string(match, uuid_items: UUIDExtractedItemDict):
@@ -36,6 +37,16 @@ def add_uuid_object_to_string(match, uuid_items: UUIDExtractedItemDict):
         else:
             return uuid
     return uuid
+
+"""
+Sadly colbert is far from ready:
+- adding to index reencodes all passages TWICE
+- the index is lost if the indexing fails
+- colbert eats a lot of VRAM no matter the batch size (I hit 8GB of NVIDIA GTX 1080 VRAM with batch size 1 and ~ 220 passages)
+- on cpu indexing ~220 passages takes 1 hour (encoding the passages twice)
+
+I tried to make colbert to use the GPU for encoding but to no avail - the tensor operations are too complex.
+"""
 
 class ColbertLocal():
     def __init__(self):
@@ -108,19 +119,9 @@ class ColbertLocal():
                 split_documents=False,
                 bsize=self.get_batch_size()
             )
-            self.colbert_model: RAGPretrainedModel = RAGPretrainedModel.from_index(self.index_path, n_gpu=0)
+            self.colbert_model: RAGPretrainedModel = RAGPretrainedModel.from_index(self.index_path)
 
 
-
-    def normalize(self, values):
-        min_val = min(values)
-        max_val = max(values)
-
-        # Avoid division by zero if all values are the same
-        if min_val == max_val:
-            return [0.5] * len(values)
-
-        return [(x - min_val) / (max_val - min_val) for x in values]
 
     def search_colbert_index(self, query: str,
                              high_level_summary: str = None,
@@ -147,9 +148,6 @@ class ColbertLocal():
             return []
 
         internal_source_count = (source_count if source_count else 100)
-        if internal_source_count < 10 and not no_reranking:
-            # For reranking of last few
-            internal_source_count += 4
 
         res = self.colbert_model.search(
             query=query,
@@ -158,13 +156,7 @@ class ColbertLocal():
             doc_ids=unique_file_ids
         )
 
-
-        if source_count and source_count < 10 and not no_reranking:
-            # return self.do_reasonable_reranking(query, res)
-            # return self.do_llm_reranking(query, res)
-            return self.do_llama_rerank(query, res)
-
-        scores = self.normalize([chunk["score"] for chunk in res])
+        scores = normalize([chunk["score"] for chunk in res])
 
         reranked = [{
             # "content": chunk["content"],
@@ -176,8 +168,6 @@ class ColbertLocal():
             "document_metadata": chunk["document_metadata"]
         } for index, chunk in enumerate(res)]
 
-        # reranked_order = sorted(reranked, key=itemgetter('rerank_score'), reverse=True)
-
         return reranked
 
     def test_colbert(self):
@@ -187,89 +177,6 @@ class ColbertLocal():
         file_data["result"] = None
         self.add_documents_to_index(file_data)
 
-    reranker = None
-    def do_reasonable_reranking(self, query, res):
-        if self.reranker is None:
-            self.reranker = FlagLLMReranker('BAAI/bge-reranker-v2-gemma',
-                                                       use_fp16=True)
 
-        rerank_score = self.reranker.compute_score([(query, chunk["content"]) for chunk in res],
-                                                   max_length=8192,
-                                                   batch_size=1,
-                                                   normalize=True)
-
-        reranked = [{
-            "content": chunk["content"],
-            "score": rerank_score[index],
-            "rank": chunk["rank"],
-            "orig_score": chunk["score"] / 100,
-            "passage_id": chunk["passage_id"],
-            "document_metadata": chunk["document_metadata"]
-        } for index, chunk in enumerate(res)]
-
-        reranked_order = sorted(reranked, key=itemgetter('score'), reverse=True)
-
-        if len(reranked_order) >= 8:
-            reranked_order = reranked_order[:-4]
-
-        return reranked_order
-
-    def do_llm_reranking(self, query, res):
-        from rerankers.documents import Document
-        crazy_reranker = RankGPTRanker()
-        reranked_orig = crazy_reranker.rank(query, [
-            Document(chunk["content"], chunk["passage_id"])
-            for chunk in res
-        ])
-
-        scores = self.normalize([chunk["score"] for chunk in res])
-
-        reranked = [{
-            "content": chunk["content"],
-            "orig_rank": reranked_orig.get_result_by_docid(chunk["passage_id"]).rank,
-            "rank": chunk["rank"],
-            "score": scores[index],
-            "unnormal_score": chunk["score"],
-            "passage_id": chunk["passage_id"],
-            "document_metadata": chunk["document_metadata"]
-        } for index, chunk in enumerate(res)]
-
-        reranked_order = sorted(reranked, key=itemgetter('rank'), reverse=False)
-
-        if len(reranked_order) >= 8:
-            reranked_order = reranked_order[:-4]
-
-        return reranked_order
-
-    client = Together()
-
-    def do_llama_rerank(self, query, res):
-        response = self.client.rerank.create(
-            # Based on Llama 3 8b - can't get better than this
-            # Thank you salesforce: https://blog.salesforceairesearch.com/llamarank/
-            # But is closed source for now! -> nice alternative above
-            model="Salesforce/Llama-Rank-V1",
-            query=query,
-            documents=[chunk["content"] for chunk in res]
-        )
-
-        response.results.sort(key=attrgetter('index'))
-
-        reranked = [{
-            "content": chunk["content"],
-            "orig_score": chunk["score"],
-            "rank": chunk["rank"],
-            "score": response.results[index].relevance_score,
-            "passage_id": chunk["passage_id"],
-            "document_metadata": chunk["document_metadata"]
-        } for index, chunk in enumerate(res)]
-
-        reranked.sort(key=itemgetter('score'), reverse=True)
-
-        if len(reranked) >= 8:
-            reranked = reranked[:-4]
-
-        return reranked
-
-
-colber_local = ColbertLocal()
+# TODO: enable when colbert get's better
+colber_local = None # ColbertLocal()
