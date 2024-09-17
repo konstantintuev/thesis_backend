@@ -143,55 +143,61 @@ class ColbertLocal():
                              high_level_summary: str = None,
                              unique_file_ids: List[str] = None,
                              source_count: int = None) -> dict or None:
-        # 'colbert_model.search' returns a list of dictionaries with the following structure:
-        # {
-        # "score": 22.4420108795166,
-        # "content": "text of the relevant passage",
-        # "rank": 1,
-        # "passage_id": 9,
-        # "document_metadata": {
-        #     "doc_id": "c8978a17-7d35-4d5a-977e-c295ab5e16b1",
-        #     "chunk_id": "4e33e0a3-7622-4840-b195-75fa9339373f",
-        #     "children": [],
-        #     "layer": 0
-        #  }
-        # }
+        try:
+            # 'colbert_model.search' returns a list of dictionaries with the following structure:
+            # {
+            # "score": 22.4420108795166,
+            # "content": "text of the relevant passage",
+            # "rank": 1,
+            # "passage_id": 9,
+            # "document_metadata": {
+            #     "doc_id": "c8978a17-7d35-4d5a-977e-c295ab5e16b1",
+            #     "chunk_id": "4e33e0a3-7622-4840-b195-75fa9339373f",
+            #     "children": [],
+            #     "layer": 0
+            #  }
+            # }
 
-        if unique_file_ids and len(unique_file_ids) == 0:
+            if unique_file_ids and len(unique_file_ids) == 0:
+                return []
+
+            internal_source_count = (source_count if source_count else 100)
+
+            # It's a list of numpy arrays
+            queries_embeddings = self.model.encode(
+                [query],
+                batch_size=self.get_batch_size(),
+                is_query=True,  # Encoding queries
+                show_progress_bar=True,
+                precision="float32",
+                convert_to_numpy=True
+            )
+
+            # We use quantised float16 for the model as the gpu is a bit old - GTX 1080,
+            #   but pylate likes float32
+            embeddings = [embedding.astype(np.float32) for embedding in queries_embeddings]
+
+            res = self.retriever.retrieve(
+                queries_embeddings=embeddings,
+                k=internal_source_count,
+            )
+
+            res = res[0]  # [0] as we have a single query
+
+            scores_normal = normalize([chunk["score"] for chunk in res])
+
+            reranked = [{
+                "unnormal_score": chunk["score"],
+                "score": scores_normal[index],
+                "passage_id": chunk["id"]
+            } for index, chunk in enumerate(res)]
+
+            return reranked
+
+        except BaseException as error:
+            print('An exception occurred: {}'.format(error))
             return []
 
-        internal_source_count = (source_count if source_count else 100)
-
-        # It's a list of numpy arrays
-        queries_embeddings = self.model.encode(
-            [query],
-            batch_size=self.get_batch_size(),
-            is_query=True,  # Encoding queries
-            show_progress_bar=True,
-            precision="float32",
-            convert_to_numpy=True
-        )
-
-        # We use quantised float16 for the model as the gpu is a bit old - GTX 1080,
-        #   but pylate likes float32
-        embeddings = [embedding.astype(np.float32) for embedding in queries_embeddings]
-
-        res = self.retriever.retrieve(
-            queries_embeddings=embeddings,
-            k=internal_source_count,
-        )
-
-        res = res[0]  # [0] as we have a single query
-
-        scores_normal = normalize([chunk["score"] for chunk in res])
-
-        reranked = [{
-            "unnormal_score": chunk["score"],
-            "score": scores_normal[index],
-            "passage_id": chunk["id"]
-        } for index, chunk in enumerate(res)]
-
-        return reranked
 
     def test_colbert(self):
         # 2312.05934v3.pdf
