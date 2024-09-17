@@ -55,7 +55,7 @@ class ColbertLocal():
             document_length=8192,
             query_length=256,
             model_kwargs={
-                "torch_dtype": torch.float16
+                "torch_dtype": torch.float32
             }
         )
 
@@ -113,6 +113,7 @@ class ColbertLocal():
             batch_size=self.get_batch_size(),
             is_query=False,  # Encoding documents
             show_progress_bar=True,
+            precision="float32"
         )
 
         # Add the documents ids and embeddings to the Voyager index
@@ -151,6 +152,7 @@ class ColbertLocal():
             batch_size=self.get_batch_size(),
             is_query=True,  # Encoding queries
             show_progress_bar=True,
+            precision="float32"
         )
 
         res = self.retriever.retrieve(
