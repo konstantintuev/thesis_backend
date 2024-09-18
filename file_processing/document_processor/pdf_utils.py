@@ -1,4 +1,4 @@
-import json
+import os
 import os
 import re
 from datetime import datetime
@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import fitz
 import tiktoken
 
-from file_processing.llm_chat_support import get_llm, LLMTemp, LLMTypes, small_llm_json_response
+from file_processing.document_processor.semantic_metadata import extract_semantic_metadata_together
 
 """Sample:
 {
@@ -159,17 +159,17 @@ class PDFMetadata:
             'keywords': self.keywords,
             'creator': self.creator,
             'producer': self.producer,
-            'creationDate': datetime_to_millis(self.creationDate),
-            'modDate': datetime_to_millis(self.modDate),
+            'creation_date': datetime_to_millis(self.creationDate),
+            'mod_date': datetime_to_millis(self.modDate),
             'trapped': self.trapped,
             'encryption': self.encryption,
-            'fileName': self.fileName,
-            'addedDate': datetime_to_millis(self.addedDate),
-            'numPages': self.numPages,
-            'pageDimensions': self.pageDimensions,
-            'fileSize': self.fileSize,
-            'avgWordsPerPage': self.avgWordsPerPage,
-            'wordCount': self.wordCount
+            'file_name': self.fileName,
+            'added_date': datetime_to_millis(self.addedDate),
+            'num_pages': self.numPages,
+            'page_dimensions': self.pageDimensions,
+            'file_size': self.fileSize,
+            'avg_words_per_page': self.avgWordsPerPage,
+            'word_count': self.wordCount
         }
 
     def __str__(self) -> str:
@@ -243,6 +243,8 @@ class PDFMetadata:
                 obj1[key] = value
         return obj1
 
+
+
     @staticmethod
     def extract_from_text(semantic_chapters: List[str]):
         """ Idea:
@@ -268,26 +270,9 @@ class PDFMetadata:
         # Extract metadata from each split
         metadata = {}
         for split in token_splits:
-            ai_msg_json = small_llm_json_response([
-                {
-                    "role": "system",
-                    "content": ("You a technical writer and need to create JSON metadata for a technical document.\n"
-                                "You are working chapter by chapter.\n"
-                                "Return a JSON object with describing the most important characteristics of the chapter as metadata in form:\n"
-                               "{ [short key describing the important characteristics]: \"key value\", ... }\n"
-                               "When preparing the metadata json take inspiration from Industry 4.0 and metadata for manual of a digital twin!\n"
-                               "Focus on product specifications and descriptions of processes. You can ignore irrelevant info!\n"
-                               "Only answer in JSON."),
-                },
-                {
-                    "role": "user",
-                    "content": f"Here is the chapter to process:\n{split}"
-                }
-            ])
-
             try:
                 # Data is written to metadata
-                PDFMetadata.merge_json(metadata, ai_msg_json)
+                PDFMetadata.merge_json(metadata, extract_semantic_metadata_together(split))
             except ValueError as e:
                 pass  # invalid json
 

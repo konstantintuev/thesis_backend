@@ -5,7 +5,7 @@ from enum import Enum
 from typing import List
 
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_core.utils.json import parse_json_markdown
+from langchain_core.utils.json import parse_json_markdown, parse_partial_json
 from langchain_groq import ChatGroq
 from langchain_openai import AzureChatOpenAI
 from langchain_together import ChatTogether
@@ -198,10 +198,18 @@ def small_llm_json_response(messages: List[dict]):
         response_format={
             "type": "json_object",
         },
-        temperature=0.7,
+        temperature=0,
     )
 
-    js = parse_json_markdown(extract.choices[0].message.content)
+    try:
+        js = parse_json_markdown(extract.choices[0].message.content)
+    except BaseException as e:
+        print(e)
+        try:
+            js = parse_partial_json(extract.choices[0].message.content)
+        except BaseException as e:
+            print(e)
+            js = {}
     return js
 
 class LLMTypes(Enum):

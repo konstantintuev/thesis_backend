@@ -128,11 +128,11 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     # TODO: Enable colbert again when it gets more stable
     await sync_to_async(colbert_local.add_documents_to_index)([out])
 
-    queue_id = await sync_to_async(set_file_status)(str(file_uuid), 'done', out_json)
+    await sync_to_async(set_file_status)(str(file_uuid), 'done', out_json)
     # delete temp_pdf_received if exists
     if os.path.exists(temp_pdf_received):
         os.remove(temp_pdf_received)
-    print(f"Done: {file_uuid}={queue_id}")
+    print(f"Done: {file_uuid}")
 
 @csrf_exempt
 @async_to_sync

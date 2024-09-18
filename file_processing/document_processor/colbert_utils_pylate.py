@@ -197,6 +197,7 @@ class ColbertLocal():
             res = self.retriever.retrieve(
                 queries_embeddings=embeddings,
                 k=internal_source_count,
+                batch_size=100
             )
 
             res = res[0]  # [0] as we have a single query
