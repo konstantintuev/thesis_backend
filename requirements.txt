@@ -67,7 +67,6 @@ transformers
 scikit-learn
 tqdm
 python-magic
-RAGatouille
 Markdown
 beautifulsoup4
 pypandoc
