@@ -1,3 +1,4 @@
+import os
 import re
 from typing import List
 import numpy as np
@@ -75,7 +76,7 @@ class ColbertLocal():
 
         try:
             self.index = indexes.Voyager(
-                index_folder=".pylate-index",
+                index_folder=os.environ.get("COLBERT_INDEX_LOCATION", ".pylate-index"),
                 index_name="index",
                 override=False,
             )
