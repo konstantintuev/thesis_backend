@@ -4,6 +4,7 @@ import numpy as np
 
 import torch
 from pylate import indexes, models, retrieve
+from sqlitedict import SqliteDict
 from transformers import is_torch_npu_available
 
 from file_processing.document_processor.semantic_text_splitter import uuid_pattern
@@ -44,7 +45,9 @@ def add_uuid_object_to_string(match, uuid_items: UUIDExtractedItemDict):
 
 class ColbertLocal():
     def __init__(self):
-        pass
+        self.model = None
+        self.retriever = None
+        self.index = None
 
     def init_model(self):
         use_fp16 = True
@@ -78,6 +81,11 @@ class ColbertLocal():
             )
 
             self.retriever = retrieve.ColBERT(index=self.index)
+
+            with SqliteDict(self.retriever.index.documents_ids_to_embeddings_path, outer_stack=False) as items:
+                if len(items) == 0:
+                    # Empty dict -> need to reencode from backup
+                    return True
 
             return False
         except BaseException as e:
@@ -128,12 +136,6 @@ class ColbertLocal():
                         for file_data in files
                         # Values of dict in python are ORDERED
                         for node in file_data["tree"].values()]
-        document_metadatas = [{"doc_id": file_data['file_uuid'],
-                               "chunk_id": node["id"],
-                               "children": node["children"],
-                               "layer": node["layer"]}
-                              for file_data in files
-                              for node in file_data["tree"].values()]
 
         documents_embeddings = self.model.encode(
             document_collection,

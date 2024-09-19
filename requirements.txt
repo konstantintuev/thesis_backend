@@ -83,3 +83,12 @@ langchain_groq
 html2text
 together
 rerankers
+faiss-cpu
+sentence-transformers
+langchain-community
+pylate
+psutil
+python-docx
+shapely
+datasets
+sqlitedict
