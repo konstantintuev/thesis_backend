@@ -88,7 +88,3 @@ sentence-transformers
 langchain-community
 pylate
 psutil
-python-docx
-shapely
-datasets
-sqlitedict
