@@ -25,9 +25,8 @@ def create_sqlite_database():
     FOREIGN KEY (parent_queue) REFERENCES multiple_files_queue (multiple_files_uuid) ON DELETE SET NULL
 )""")
 
-def add_multiple_files_to_queue(file_list: List[Dict[str, str]]) -> str:
+def add_multiple_files_to_queue(multiple_files_uuid: str, file_list: List[Dict[str, str]]) -> str:
     with connection.cursor() as cursor:
-        multiple_files_uuid = str(uuid.uuid4())
         cursor.execute("INSERT INTO multiple_files_queue (multiple_files_uuid) VALUES (%s)", [multiple_files_uuid])
         for file in file_list:
             cursor.execute("INSERT INTO file_queue (file_uuid, file_path, mime_type, parent_queue) VALUES (%s, %s, %s, %s)",

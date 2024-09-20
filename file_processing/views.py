@@ -56,8 +56,7 @@ def create_chunk(index, chunk, pending_embeddings, uuid_items):
     return out  # (index, out)
 
 async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received: str,
-                             file_mime_type: str, file_processor: str):
-    logging.info(f"Start processing: {file_uuid}",)
+                             md_content: str, file_mime_type: str, file_processor: str):
     # with open("raptor/demo/sample_response.json", 'r', encoding='utf-8') as test_file:
     #   test_json_content = test_file.read()
     # return HttpResponse(test_json_content, content_type="application/json")
@@ -69,9 +68,6 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
     # tree_json = json.dumps(tree_dict, indent=4)
 
     # return HttpResponse(tree_json, content_type="application/json")
-
-    md_content = (pdf_to_md_by_type(temp_pdf_received, file_processor, file_uuid=f'{file_uuid}')
-                  .get_best_text_content())
     logging.info(f"Got md content: {file_uuid}")
     headers_to_split_on = [
         ("#", "Header 1")
@@ -158,6 +154,8 @@ async def files_to_chunks(request):
         if not uploaded_files and not upload_urls:
             return HttpResponse("No files uploaded")
 
+        queue_id = str(uuid.uuid4())
+
         for_queue = []
         def handle_file(file_uuid, file_name, temp_pdf_received, file_processor):
             file_mime_type = magic.from_file(temp_pdf_received, mime=True)
@@ -166,36 +164,48 @@ async def files_to_chunks(request):
                 # TODO: accept more files
                 return HttpResponse("File is not a PDF")
 
+            logging.info(f"Start processing: {file_uuid}")
+
+            md_content = (pdf_to_md_by_type(temp_pdf_received, file_processor, file_uuid=f'{file_uuid}')
+                          .get_best_text_content())
+
             # Schedule the long-running async task to run in the thread
             thread = threading.Thread(target=run_async_task,
                                       args=[pdf_to_chunks_task(file_uuid, file_name, temp_pdf_received,
-                                                               file_mime_type, file_processor)])
+                                                               md_content, file_mime_type, file_processor)])
             thread.start()
 
             for_queue.append({"file_uuid": str(file_uuid), "file_path": temp_pdf_received, "mime_type": file_mime_type})
 
-        # TODO: limit files loaded in memory (66 page pdf is 9MBs of processed data and 2 MBs of pdf -> 0,1667 MB per Page)
-        # -> 10 GBs of ram is good for 60_000 pages of pdfs or 600 pdfs with 100 pages
-        if upload_urls:
-            for i in range(0, len(upload_urls)):
-                url = upload_urls[i]
-                file_uuid = file_ids[i]
-                file_name = get_filename_from_url(url)
-                temp_pdf_received = os.path.join(temp_dir, f'{file_uuid}.pdf')
-                response = requests.get(url, stream=True)
-                with open(temp_pdf_received, 'wb') as output:
-                    output.write(response.content)
-                handle_file(file_uuid, file_name, temp_pdf_received, file_processor)
-        elif uploaded_files:
-            for file in uploaded_files:
-                file_uuid = uuid.uuid4()
-                temp_pdf_received = os.path.join(temp_dir, f'{file_uuid}.pdf')
-                async with aiofiles.open(temp_pdf_received, 'wb') as f:
-                    for chunk in file.chunks():
-                        await f.write(chunk)
-                handle_file(file_uuid, file.name, temp_pdf_received, file_processor)
+        async def process_files_to_chunks(file_ids, file_processor, for_queue, handle_file, upload_urls,
+                                          uploaded_files):
+            # TODO: limit files loaded in memory (66 page pdf is 9MBs of processed data and 2 MBs of pdf -> 0,1667 MB per Page)
+            # -> 10 GBs of ram is good for 60_000 pages of pdfs or 600 pdfs with 100 pages
+            if upload_urls:
+                for i in range(0, len(upload_urls)):
+                    url = upload_urls[i]
+                    file_uuid = file_ids[i]
+                    file_name = get_filename_from_url(url)
+                    temp_pdf_received = os.path.join(temp_dir, f'{file_uuid}.pdf')
+                    response = requests.get(url, stream=True)
+                    async with aiofiles.open(temp_pdf_received, 'wb') as output:
+                        await output.write(response.content)
+                    handle_file(file_uuid, file_name, temp_pdf_received, file_processor)
+            elif uploaded_files:
+                for file in uploaded_files:
+                    file_uuid = uuid.uuid4()
+                    temp_pdf_received = os.path.join(temp_dir, f'{file_uuid}.pdf')
+                    async with aiofiles.open(temp_pdf_received, 'wb') as f:
+                        for chunk in file.chunks():
+                            await f.write(chunk)
+                    handle_file(file_uuid, file.name, temp_pdf_received, file_processor)
+            await sync_to_async(add_multiple_files_to_queue)(queue_id, for_queue)
 
-        queue_id = await sync_to_async(add_multiple_files_to_queue)(for_queue)
+        thread = threading.Thread(target=run_async_task,
+                                  args=[process_files_to_chunks(file_ids, file_processor, for_queue, handle_file,
+                                                                upload_urls, uploaded_files)])
+        thread.start()
+
         return JsonResponse({"multiple_file_queue_id": queue_id})
     else:
         return HttpResponse('Invalid request')

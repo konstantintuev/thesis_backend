@@ -1,8 +1,11 @@
 import logging
 import os
+import time
 
 from langchain_community.document_loaders import AzureAIDocumentIntelligenceLoader
-from ratelimiter import RateLimiter
+from limits import RateLimitItemPerSecond
+from limits.storage import MemoryStorage
+from limits.strategies import FixedWindowRateLimiter
 
 from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 from file_processing.document_processor.pdf_utils import split_pdf
@@ -21,17 +24,19 @@ def pdf_to_md_azure_doc_intel_pdfs(pdf_filepath: str, output_dir: str) -> PdfToM
     for split_pdf_path in split_pdf_paths:
         tries = 0
         while not parse_this_pdf_split(analysis_features, pages_out, split_pdf_path):
-            logging.error(f"Retry({os.path.basename(split_pdf_path.split_pdf_path)}: {tries}")
+            logging.error(f"Retry({os.path.basename(split_pdf_path.split_pdf_path)}): {tries}")
             tries += 1
 
     return pages_out
 
-
-rate_limiter = RateLimiter(max_calls=1, period=2)
+rate_limit = RateLimitItemPerSecond(1)
+storage = MemoryStorage()
+limiter = FixedWindowRateLimiter(storage)
 
 def parse_this_pdf_split(analysis_features, pages_out, split_pdf_path):
-    with rate_limiter:
+    if limiter.hit(rate_limit):
         try:
+            logging.info(f"Processing {os.path.basename(split_pdf_path.split_pdf_path)} at {time.time()}")
             # Create a temp dir into which we split the pdf - this way we honor the max pages requirement
             loader = AzureAIDocumentIntelligenceLoader(
                 api_endpoint=os.environ.get("AZURE_DOC_INTEL_ENDPOINT"),
@@ -56,6 +61,10 @@ def parse_this_pdf_split(analysis_features, pages_out, split_pdf_path):
         except BaseException as e:
             logging.error(f"AzureAIDocumentIntelligenceLoader FAILED({os.path.basename(split_pdf_path.split_pdf_path)}): {e}")
             return False
+    else:
+        logging.info(f"Rate limit for {os.path.basename(split_pdf_path.split_pdf_path)} exceeded at {time.time()}")
+        time.sleep(1 / rate_limit.amount)
+        return False
 
 
 def pdf_to_md_azure_doc_intel(pdf_filepath: str, out_dir: str) -> PdfToMdDocument:
