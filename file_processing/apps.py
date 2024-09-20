@@ -31,6 +31,8 @@ def load_all_from_db():
     if not files or "files" not in files:
         return
     files = files["files"]
+    if len(files) == 0:
+        return
     for file in files:
         file["tree"] = file["result"]["tree"]
         file["uuid_items"] = file["result"]["uuid_items"]
