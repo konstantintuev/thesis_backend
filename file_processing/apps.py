@@ -27,7 +27,10 @@ def load_document_trees():
         colbert_local.add_documents_to_index(list_of_trees)
 
 def load_all_from_db():
-    files = get_all_files_queue()["files"]
+    files = get_all_files_queue()
+    if not files or "files" not in files:
+        return
+    files = files["files"]
     for file in files:
         file["tree"] = file["result"]["tree"]
         file["uuid_items"] = file["result"]["uuid_items"]
