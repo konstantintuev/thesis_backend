@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 number_of_models_in_parallel = 2
 
 # Around 4 GB for batch size 8 on GTX 1080
-#  -> 1 batch per 0.5 GB free
+#  -> 1 batch per 0.5 GB free, safe is 1 batch per 1 GB free
 def get_batch_size():
     if torch.cuda.is_available():
         # One, first GPU
@@ -22,7 +22,7 @@ def get_batch_size():
         logger.info(f"Total VRAM: {total_memory_in_gb:.2f} GB")
         logger.info(f"Free VRAM: {free_memory_in_gb:.2f} GB")
 
-        return max(round((total_memory_in_gb/2) * 2) - 1, 1) # Max - 1 batch of slack
+        return max(round(total_memory_in_gb/2) - 1, 1) # Max - 1 batch of slack
     else:
         logger.info("CUDA is not available. No GPU detected.")
         # Good baseline
