@@ -1,5 +1,5 @@
 # Thank you o1-preview
-
+import sys
 from typing import Optional, List, Dict
 
 from langchain_core.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, ChatPromptTemplate
@@ -135,7 +135,7 @@ def extract_semantic_metadata(technical_document: str):
         res = rewrite_query.invoke({"document": technical_document})
         return res.to_dict()
     except BaseException as e:
-        print(e)
+        print(e, file=sys.stderr)
         return {}
 
 
@@ -230,5 +230,6 @@ Respond only in JSON format and ensure the response follows the provided structu
 
         return output
     except BaseException as e:
-        print(e)
+        import sys
+        print(e, file=sys.stderr)
         return {}

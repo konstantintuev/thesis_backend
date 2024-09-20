@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 from enum import Enum
 from typing import List
@@ -107,7 +108,7 @@ class SummarizerGroq(BaseSummarizationModel):
                 return resp.content
 
             except Exception as e:
-                print(e)
+                print(e, file=sys.stderr)
                 return e
 
 
@@ -204,11 +205,11 @@ def small_llm_json_response(messages: List[dict]):
     try:
         js = parse_json_markdown(extract.choices[0].message.content)
     except BaseException as e:
-        print(e)
+        print("Non fatal:", e)
         try:
             js = parse_partial_json(extract.choices[0].message.content)
         except BaseException as e:
-            print(e)
+            print("Non fatal:", e)
             js = {}
     return js
 
@@ -271,5 +272,5 @@ class SummarizerAzureGPT(BaseSummarizationModel):
                 return resp.content
 
             except Exception as e:
-                print(e)
+                print("Summarisation error: ",e, file=sys.stderr)
                 return e

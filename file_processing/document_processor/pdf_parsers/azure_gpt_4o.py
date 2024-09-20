@@ -9,6 +9,7 @@
 """
 
 import logging
+import sys
 
 from file_processing.storage_manager import global_temp_dir
 
@@ -22,26 +23,17 @@ from file_processing.document_processor.md_parser import extract_code_blocks
 from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 
 import base64
-import os
-import tempfile
 import time
 import uuid
 from threading import Lock
 
 import os
-import re
-from typing import List, Tuple, Optional, Dict
 import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import AzureChatOpenAI
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-import fitz  # PyMuPDF
-import shapely.geometry as sg
-from shapely.geometry.base import BaseGeometry
-from shapely.validation import explain_validity
-import concurrent.futures
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 from langchain_community.document_loaders import AzureAIDocumentIntelligenceLoader
 
@@ -173,6 +165,13 @@ class AzureDocAndGptTPS:
         pages_out = PdfToMdDocument()
         analysis_features = ["ocrHighResolution", "formulas"]
         for split_pdf_path in split_pdf_paths:
+            retries = 0
+            while not self.parse_this_split_pdf(analysis_features, pages_out, split_pdf_path):
+                print(f"Retries: {retries}")
+        return pages_out
+
+    def parse_this_split_pdf(self, analysis_features, pages_out, split_pdf_path):
+        try:
             # Create a temp dir into which we split the pdf - this way we honor the max pages requirement
             loader = AzureAIDocumentIntelligenceLoader(
                 api_endpoint=os.environ.get("AZURE_DOC_INTEL_ENDPOINT"),
@@ -212,7 +211,10 @@ class AzureDocAndGptTPS:
                 parsed_json_log[0],
                 split_pdf_path.screenshots_per_page[0]
             ))
-        return pages_out
+            return True
+        except BaseException as e:
+            print("GPT 4o + Azure Doc Intelligence failed: ", e, file=sys.stderr)
+            return False
 
 
 azure_doc_and_gpt_impl = AzureDocAndGptTPS()

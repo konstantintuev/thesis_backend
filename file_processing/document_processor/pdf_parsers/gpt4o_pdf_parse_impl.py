@@ -1,5 +1,6 @@
 import base64
 import logging
+import sys
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -58,6 +59,16 @@ def pdf_to_md_gpt4o(pdf_filepath: str, output_dir: str, n: int = 8) -> PdfToMdDo
 
     # Batch process with up to n parallel tasks at a time
     for i in range(0, len(split_pdf_paths), n):
+        tries = 0
+        while not parse_this_split_pdf(i, n, pages_out, prompt, split_pdf_paths):
+            print(f"Retry: {tries}")
+            tries += 1
+
+    return pages_out
+
+
+def parse_this_split_pdf(i, n, pages_out, prompt, split_pdf_paths):
+    try:
         batch = split_pdf_paths[i:i + n]
         chains = {}
         for idx, split_pdf_path in enumerate(batch):
@@ -65,11 +76,9 @@ def pdf_to_md_gpt4o(pdf_filepath: str, output_dir: str, n: int = 8) -> PdfToMdDo
                 image_data = base64.b64encode(screenshot.read()).decode("utf-8")
             prompt_template = create_prompt_for_page(image_data, prompt)
             chains[f"page_{i + idx}"] = prompt_template | get_llm(LLMTemp.CONCRETE)
-
         # Run this batch in parallel
         map_chain = RunnableParallel(**chains)
         results = map_chain.invoke({})
-
         # Extract and process the markdown content from each result
         for idx, result in results.items():
             parsed_md_content = extract_code_blocks("markdown", result.content)
@@ -80,8 +89,10 @@ def pdf_to_md_gpt4o(pdf_filepath: str, output_dir: str, n: int = 8) -> PdfToMdDo
                 "",
                 split_pdf_paths[int(idx.split("_")[1])].screenshots_per_page[0]
             ))
-
-    return pages_out
+        return True
+    except BaseException as e:
+        print("AzureAIDocumentIntelligenceLoader FAILED:", e, file=sys.stderr)
+        return False
 
 
 if __name__ == '__main__':

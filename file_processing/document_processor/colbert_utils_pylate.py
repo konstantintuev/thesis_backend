@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 from typing import List
 import numpy as np
 
@@ -90,7 +91,7 @@ class ColbertLocal():
 
             return False
         except BaseException as e:
-            print('An exception occurred: {}'.format(e))
+            print('An exception occurred: {}'.format(e), file=sys.stderr)
 
             self.index = indexes.Voyager(
                 index_folder=os.environ.get("COLBERT_INDEX_LOCATION", ".pylate-index"),
@@ -216,7 +217,7 @@ class ColbertLocal():
             return reranked
 
         except BaseException as error:
-            print('An exception occurred: {}'.format(error))
+            print('An exception occurred: {}'.format(error), file=sys.stderr)
             return []
 
 

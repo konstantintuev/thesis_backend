@@ -7,6 +7,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def main():
+    import logging
+    logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s')
+    logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
+    logging.getLogger('langchain_community.document_loaders.parsers.doc_intelligence').setLevel(logging.ERROR)
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "thesis_backend.settings")
     try:

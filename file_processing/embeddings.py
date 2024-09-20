@@ -1,16 +1,16 @@
+import inspect
+import logging
 import threading
-import time
 import uuid
 from collections import OrderedDict
 from typing import List
 
-import psutil
-import torch.backends.mps
 from FlagEmbedding.bge_m3 import BGEM3FlagModel
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.embeddings import Embeddings
 
 model_name = "BAAI/bge-m3"
+
+logger = logging.getLogger(__name__)
 
 
 class BGEM3Flag(Embeddings):
@@ -21,20 +21,54 @@ class BGEM3Flag(Embeddings):
         self.model = BGEM3FlagModel('BAAI/bge-m3',
                                     use_fp16=True)
 
-    def get_batch_size(self):
-        if torch.backends.mps.is_available():
-            # My mac with 8 GB of VRAM handles so much
-            return 12
-        # Else we do CPU
-        return 4
+    def get_default_batch_size(self):
+        return 8
 
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Embed search docs."""
-        return self.model.encode(texts, batch_size=self.get_batch_size())['dense_vecs'].tolist()
+    def embed_documents(self, *args, **kwargs) -> List[List[float]]:
+        """
+        Embed search docs using flexible arguments.
 
-    def embed_query(self, text: str) -> List[float]:
-        """Embed query text."""
-        return self.model.encode(text, batch_size=self.get_batch_size())['dense_vecs'].tolist()
+        Expected usage:
+        - embed_documents(texts, gpu_batch_size=default_batch_size)
+        - embed_documents(texts)
+        """
+        # Extract texts and gpu_batch_size from args and kwargs
+        texts = kwargs.get('texts')
+        gpu_batch_size = kwargs.get('gpu_batch_size', self.get_default_batch_size())
+
+        # Handle case when texts is passed as the first positional argument
+        if len(args) > 0:
+            texts = args[0]
+
+        if texts is None:
+            raise ValueError("The 'texts' argument is required.")
+
+        # Use the extracted parameters to embed documents
+        return self.model.encode(texts, batch_size=gpu_batch_size)['dense_vecs'].tolist()
+
+    def embed_query(self, *args, **kwargs) -> List[float]:
+        """
+        Embed a single query using flexible arguments.
+
+        Expected usage:
+        - embed_query(text, gpu_batch_size=default_batch_size)
+        - embed_query(text)
+        - embed_query(text="query", gpu_batch_size=default_batch_size)
+        """
+        # Extract text and gpu_batch_size from args and kwargs
+        text = kwargs.get('text')
+        gpu_batch_size = kwargs.get('gpu_batch_size', self.get_default_batch_size())
+
+        # Handle case when text is passed as the first positional argument
+        if len(args) > 0:
+            text = args[0]
+
+        if text is None:
+            raise ValueError("The 'text' argument is required.")
+
+        # Use the extracted parameters to embed the query
+        return self.model.encode([text], batch_size=gpu_batch_size)['dense_vecs'][0]
+
 
 """
 model_kwargs = {"device": "mps"}
@@ -111,7 +145,28 @@ class PendingLangchainEmbeddings(Embeddings):
                 all_texts = []
 
         if all_texts:
-            embeddings = self.model.embed_documents(all_texts)
+            tries = 0
+            gpu_batch_size = self.model.get_default_batch_size() if hasattr(self.model, 'get_default_batch_size') else 6
+            emb_res = self.actual_embedding_process(all_texts, request_ids, texts, gpu_batch_size)
+            while not emb_res:
+                logging.error(f"Retry pending embedding: {tries}")
+                tries += 1
+                if emb_res is None:
+                    # GPU VRAM Size ERROR
+                    gpu_batch_size -= 1
+                if gpu_batch_size <= 0:
+                    gpu_batch_size = 1
+
+                emb_res = self.actual_embedding_process(all_texts, request_ids, texts, gpu_batch_size)
+
+        self.timer.reset(self.subsequent_interval)
+
+    def actual_embedding_process(self, all_texts, request_ids, texts, gpu_batch_size):
+        try:
+            sig = inspect.signature(self.model.embed_documents)
+            embeddings = self.model.embed_documents(all_texts, gpu_batch_size=gpu_batch_size) \
+                if len(sig.parameters) >= 2 else self.model.embed_documents(all_texts)
+
             idx = 0
             results = {}
             for rid, text_list in zip(request_ids, texts):
@@ -125,8 +180,13 @@ class PendingLangchainEmbeddings(Embeddings):
                         self.pending_requests[rid]["result"] = results[rid]
                         with self.pending_requests[rid]["cv"]:
                             self.pending_requests[rid]["cv"].notify_all()
+            return True
+        except BaseException as e:
+            logging.error("Pending embeddings error occurred, retrying...", exc_info=e)
+            if "Invalid buffer size" in repr(e):
+                return None
 
-        self.timer.reset(self.subsequent_interval)
+            return False
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embed search docs."""

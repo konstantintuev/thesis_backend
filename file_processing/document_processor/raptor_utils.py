@@ -1,4 +1,5 @@
 import logging
+import sys
 import uuid
 from typing import List
 
@@ -57,7 +58,7 @@ class TogetherEmbeddingModel(BaseEmbeddingModel):
             # convert list of floats (embedding[0]) to numpy array
             return np.array(embedding[0])
         except Exception as e:
-            print(e)
+            print(e, file=sys.stderr)
             return e
 
     @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
@@ -70,7 +71,7 @@ class TogetherEmbeddingModel(BaseEmbeddingModel):
                 embedding_list = embeddings.embed_documents(text)
                 return embedding_list
             except Exception as e:
-                print(e)
+                print(e, file=sys.stderr)
 
 
 class LangchainPendingEmbeddingModel(BaseEmbeddingModel):

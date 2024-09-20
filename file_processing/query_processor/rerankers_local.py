@@ -98,12 +98,12 @@ class RerankersLocal():
         queries_embeddings = colbert_local.model.encode(
             [query],
             is_query=True,
-            batch_size=colbert_local.get_batch_size()
+            batch_size=colbert_local.get_default_batch_size()
         )
         documents_embeddings = colbert_local.model.encode(
             [[chunk["content"] for chunk in res]],
             is_query=False,
-            batch_size=colbert_local.get_batch_size()
+            batch_size=colbert_local.get_default_batch_size()
         )
 
 

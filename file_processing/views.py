@@ -1,3 +1,4 @@
+import logging
 import asyncio
 import json
 import os
@@ -56,6 +57,7 @@ def create_chunk(index, chunk, pending_embeddings, uuid_items):
 
 async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received: str,
                              file_mime_type: str, file_processor: str):
+    logging.info(f"Start processing: {file_uuid}",)
     # with open("raptor/demo/sample_response.json", 'r', encoding='utf-8') as test_file:
     #   test_json_content = test_file.read()
     # return HttpResponse(test_json_content, content_type="application/json")
@@ -70,6 +72,7 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
 
     md_content = (pdf_to_md_by_type(temp_pdf_received, file_processor, file_uuid=f'{file_uuid}')
                   .get_best_text_content())
+    logging.info(f"Got md content: {file_uuid}")
     headers_to_split_on = [
         ("#", "Header 1")
     ]
@@ -79,6 +82,8 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         md_content,
         headers_to_split_on,
         int(os.environ.get("MIN_CHUNK_LENGTH")))
+
+    logging.info(f"Got md semantic chunk: {file_uuid}")
 
     loop = asyncio.get_running_loop()
 
@@ -91,10 +96,9 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         # List is lists divided by markdown chunks
         semantic_chapters_raw = await asyncio.gather(*tasks)
         semantic_chapters = [chapter for sublist in semantic_chapters_raw for chapter in sublist]
+        logging.info(f"Got vector semantic chunk: {file_uuid}")
 
     # Tables, lists and math are valuable content for summarisation
-    # ... BUT adding them f ups the raptor tree
-    # TODO: decide what to do!, unused for now
     semantic_chapters_w_attachable_content = [re.sub(uuid_pattern,
                                                      lambda match: add_uuid_object_to_string(match, uuid_items),
                                                      chapter)
@@ -107,11 +111,18 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
         "file_metadata": pdf_metadata.to_dict(),
         "semantic_metadata": semantic_metadata
     })
-    ret.add_semantic_chapters(semantic_chapters)
+    logging.info(f"Got metadata, creating tree: {file_uuid}")
+    ret.add_semantic_chapters(semantic_chapters_w_attachable_content)
+    logging.info(f"Created RAPTOR tree: {file_uuid}")
     # SAVE_PATH = "../raptor/demo/random"
     # ret.save(SAVE_PATH)
 
     tree_dict = tree_to_dict(ret.tree)
+
+    for i in range(len(semantic_chapters)):
+        # Remove attachable content after processing
+        #  ...the root nodes should be the first ones
+        tree_dict[i]["text"] = semantic_chapters[i]
 
     out = {
         "tree": tree_dict,
@@ -127,12 +138,13 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
 
     # TODO: Enable colbert again when it gets more stable
     await sync_to_async(colbert_local.add_documents_to_index)([out])
+    logging.info(f"Added to index: {file_uuid}")
 
     await sync_to_async(set_file_status)(str(file_uuid), 'done', out_json)
     # delete temp_pdf_received if exists
     if os.path.exists(temp_pdf_received):
         os.remove(temp_pdf_received)
-    print(f"Done: {file_uuid}")
+    logging.info(f"Done: {file_uuid}")
 
 @csrf_exempt
 @async_to_sync
@@ -430,7 +442,7 @@ def rerank_results(request):
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON"}, status=400)
         except BaseException as e:
-            print('An exception occurred: {}'.format(e))
+            logging.info(f'An exception occurred: {e}')
             return JsonResponse({"error": str(e)}, status=500)
     else:
         return JsonResponse({"error": "Invalid request method"}, status=405)
