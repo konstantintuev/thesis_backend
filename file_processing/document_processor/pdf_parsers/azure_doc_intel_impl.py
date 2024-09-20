@@ -2,7 +2,7 @@ import logging
 import os
 
 from langchain_community.document_loaders import AzureAIDocumentIntelligenceLoader
-from ratelimit import sleep_and_retry, limits
+from ratelimiter import RateLimiter
 
 from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 from file_processing.document_processor.pdf_utils import split_pdf
@@ -26,34 +26,36 @@ def pdf_to_md_azure_doc_intel_pdfs(pdf_filepath: str, output_dir: str) -> PdfToM
 
     return pages_out
 
-@sleep_and_retry
-@limits(calls=1, period=1.5)
+
+rate_limiter = RateLimiter(max_calls=1, period=2)
+
 def parse_this_pdf_split(analysis_features, pages_out, split_pdf_path):
-    try:
-        # Create a temp dir into which we split the pdf - this way we honor the max pages requirement
-        loader = AzureAIDocumentIntelligenceLoader(
-            api_endpoint=os.environ.get("AZURE_DOC_INTEL_ENDPOINT"),
-            api_key=os.environ.get("AZURE_DOC_INTEL_API_KEY"),
-            file_path=split_pdf_path.split_pdf_path,
-            api_model="prebuilt-layout",
-            mode="markdown",
-            analysis_features=analysis_features
-        )
-        raw_page_md_content = ""
-        documents = loader.load()
-        for document in documents:
-            raw_page_md_content += document.page_content + "\n\n"
-        pages_out.append(PdfToMdPageInfo(
-            split_pdf_path.from_original_start_page,
-            raw_page_md_content,
-            "",
-            "",
-            split_pdf_path.screenshots_per_page[0]
-        ))
-        return True
-    except BaseException as e:
-        logging.error(f"AzureAIDocumentIntelligenceLoader FAILED({os.path.basename(split_pdf_path.split_pdf_path)}: {e}")
-        return False
+    with rate_limiter:
+        try:
+            # Create a temp dir into which we split the pdf - this way we honor the max pages requirement
+            loader = AzureAIDocumentIntelligenceLoader(
+                api_endpoint=os.environ.get("AZURE_DOC_INTEL_ENDPOINT"),
+                api_key=os.environ.get("AZURE_DOC_INTEL_API_KEY"),
+                file_path=split_pdf_path.split_pdf_path,
+                api_model="prebuilt-layout",
+                mode="markdown",
+                analysis_features=analysis_features
+            )
+            raw_page_md_content = ""
+            documents = loader.load()
+            for document in documents:
+                raw_page_md_content += document.page_content + "\n\n"
+            pages_out.append(PdfToMdPageInfo(
+                split_pdf_path.from_original_start_page,
+                raw_page_md_content,
+                "",
+                "",
+                split_pdf_path.screenshots_per_page[0]
+            ))
+            return True
+        except BaseException as e:
+            logging.error(f"AzureAIDocumentIntelligenceLoader FAILED({os.path.basename(split_pdf_path.split_pdf_path)}): {e}")
+            return False
 
 
 def pdf_to_md_azure_doc_intel(pdf_filepath: str, out_dir: str) -> PdfToMdDocument:
