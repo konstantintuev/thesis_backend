@@ -24,7 +24,8 @@ class BGEM3Flag(Embeddings):
                                     use_fp16=True)
 
     def get_default_batch_size(self):
-        return get_batch_size()
+        # Twice as memory intensive as colbert
+        return round(get_batch_size() / 2)
 
     def embed_documents(self, *args, **kwargs) -> List[List[float]]:
         """
