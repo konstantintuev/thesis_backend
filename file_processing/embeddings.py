@@ -5,6 +5,7 @@ import uuid
 from collections import OrderedDict
 from typing import List
 
+import torch
 from FlagEmbedding.bge_m3 import BGEM3FlagModel
 from langchain_core.embeddings import Embeddings
 
@@ -181,6 +182,9 @@ class PendingLangchainEmbeddings(Embeddings):
                         with self.pending_requests[rid]["cv"]:
                             self.pending_requests[rid]["cv"].notify_all()
             return True
+        except torch.OutOfMemoryError as e:
+            logging.error("Pending embeddings error occurred, retrying...", exc_info=e)
+            return None
         except BaseException as e:
             logging.error("Pending embeddings error occurred, retrying...", exc_info=e)
             if "Invalid buffer size" in repr(e):
