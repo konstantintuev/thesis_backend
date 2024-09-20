@@ -9,10 +9,11 @@ import torch
 from FlagEmbedding.bge_m3 import BGEM3FlagModel
 from langchain_core.embeddings import Embeddings
 
+from file_processing.gpu_utils import get_batch_size
+
 model_name = "BAAI/bge-m3"
 
 logger = logging.getLogger(__name__)
-
 
 class BGEM3Flag(Embeddings):
     def __init__(self):
@@ -23,7 +24,7 @@ class BGEM3Flag(Embeddings):
                                     use_fp16=True)
 
     def get_default_batch_size(self):
-        return 8
+        return get_batch_size()
 
     def embed_documents(self, *args, **kwargs) -> List[List[float]]:
         """
@@ -147,7 +148,7 @@ class PendingLangchainEmbeddings(Embeddings):
 
         if all_texts:
             tries = 0
-            gpu_batch_size = self.model.get_default_batch_size() if hasattr(self.model, 'get_default_batch_size') else 6
+            gpu_batch_size = self.model.get_default_batch_size() if hasattr(self.model, 'get_default_batch_size') else get_batch_size()
             emb_res = self.actual_embedding_process(all_texts, request_ids, texts, gpu_batch_size)
             while not emb_res:
                 logging.error(f"Retry pending embedding: {tries}")

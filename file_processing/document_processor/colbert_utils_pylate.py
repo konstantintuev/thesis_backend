@@ -13,6 +13,7 @@ from transformers import is_torch_npu_available
 from file_processing.document_processor.semantic_text_splitter import uuid_pattern
 from file_processing.document_processor.types_local import UUIDExtractedItemDict
 from file_processing.file_queue_management.file_queue_db import get_all_files_queue
+from file_processing.gpu_utils import get_batch_size
 
 def normalize(values):
     min_val = min(values)
@@ -109,8 +110,7 @@ class ColbertLocal():
         pass
 
     def get_batch_size(self):
-        # Fit into 8GB of VRAM
-        return 3
+        return get_batch_size()
 
 
     """
