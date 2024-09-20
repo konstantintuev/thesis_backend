@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import sys
@@ -139,14 +140,22 @@ class ColbertLocal():
                         # Values of dict in python are ORDERED
                         for node in file_data["tree"].values()]
 
-        documents_embeddings = self.model.encode(
-            document_collection,
-            batch_size=self.get_batch_size(),
-            is_query=False,  # Encoding documents
-            show_progress_bar=True,
-            precision="float32",
-            convert_to_numpy=True
-        )
+        documents_embeddings = []
+
+        tries = 0
+        gpu_batch_size = self.get_batch_size()
+        emb_res = self.encode_items(document_collection, documents_embeddings, False, gpu_batch_size)
+        while not emb_res:
+            tries += 1
+            if emb_res is None:
+                # GPU VRAM Size ERROR
+                gpu_batch_size -= 1
+            if gpu_batch_size <= 0:
+                gpu_batch_size = 1
+
+            logging.error(f"Retry colbert document embedding: {tries} with batch size: {gpu_batch_size}")
+
+            emb_res = self.encode_items(document_collection, documents_embeddings, False, gpu_batch_size)
 
         # We use quantised float16 for the model as the gpu is a bit old - GTX 1080,
         #   but pylate likes float32 and we don't want to quantise to int
@@ -158,7 +167,25 @@ class ColbertLocal():
             documents_embeddings=embeddings
         )
 
-
+    def encode_items(self, document_collection, documents_embeddings, is_query, gpu_batch_size):
+        try:
+            documents_embeddings.extend(self.model.encode(
+                document_collection,
+                batch_size=gpu_batch_size,
+                is_query=is_query,  # Encoding documents
+                show_progress_bar=True,
+                precision="float32",
+                convert_to_numpy=True
+            ))
+            return True
+        except torch.OutOfMemoryError as e:
+            logging.error("Colbert embeddings error occurred, retrying...", exc_info=e)
+            return None
+        except BaseException as e:
+            logging.error("Colbert embeddings error occurred, retrying...", exc_info=e)
+            if "Invalid buffer size" in repr(e):
+                return None
+            return False
 
     def search_colbert_index(self, query: str,
                              high_level_summary: str = None,
@@ -185,14 +212,21 @@ class ColbertLocal():
             internal_source_count = (source_count if source_count else 100)
 
             # It's a list of numpy arrays
-            queries_embeddings = self.model.encode(
-                [query],
-                batch_size=self.get_batch_size(),
-                is_query=True,  # Encoding queries
-                show_progress_bar=True,
-                precision="float32",
-                convert_to_numpy=True
-            )
+            queries_embeddings = []
+            tries = 0
+            gpu_batch_size = self.get_batch_size()
+            emb_res = self.encode_items([query], queries_embeddings, True, gpu_batch_size)
+            while not emb_res:
+                tries += 1
+                if emb_res is None:
+                    # GPU VRAM Size ERROR
+                    gpu_batch_size -= 1
+                if gpu_batch_size <= 0:
+                    gpu_batch_size = 1
+
+                logging.error(f"Retry colbert query embedding: {tries} with batch size: {gpu_batch_size}")
+
+                emb_res = self.encode_items([query], queries_embeddings, True, gpu_batch_size)
 
             # We use quantised float16 for the model as the gpu is a bit old - GTX 1080,
             #   but pylate likes float32
