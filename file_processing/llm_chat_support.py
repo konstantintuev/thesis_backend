@@ -200,7 +200,7 @@ def small_llm_json_response(messages: List[dict]):
         response_format={
             "type": "json_object",
         },
-        temperature=0,
+        temperature=0.4,
     )
 
     try:

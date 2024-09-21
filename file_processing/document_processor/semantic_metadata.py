@@ -212,7 +212,8 @@ Please follow this general schema for the JSON response:
     }}
 }}
 
-Respond only in JSON format and ensure the response follows the provided structure.
+Respond only in valid JSON format and ensure the response follows the provided structure.
+Don't ever write comments or deviate from the rules for a valid JSON.
 """
         )
 

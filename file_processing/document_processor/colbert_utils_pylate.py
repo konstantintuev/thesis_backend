@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 import re
@@ -169,6 +170,10 @@ class ColbertLocal():
 
     def encode_items(self, document_collection, documents_embeddings, is_query, gpu_batch_size):
         try:
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
             documents_embeddings.extend(self.model.encode(
                 document_collection,
                 batch_size=gpu_batch_size,

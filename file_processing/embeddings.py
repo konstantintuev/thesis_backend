@@ -1,3 +1,4 @@
+import gc
 import inspect
 import logging
 import threading
@@ -46,6 +47,10 @@ class BGEM3Flag(Embeddings):
         if texts is None:
             raise ValueError("The 'texts' argument is required.")
 
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         # Use the extracted parameters to embed documents
         return self.model.encode(texts, batch_size=gpu_batch_size)['dense_vecs'].tolist()
 
@@ -68,6 +73,10 @@ class BGEM3Flag(Embeddings):
 
         if text is None:
             raise ValueError("The 'text' argument is required.")
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         # Use the extracted parameters to embed the query
         return self.model.encode([text], batch_size=gpu_batch_size)['dense_vecs'][0]
