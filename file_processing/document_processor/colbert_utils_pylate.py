@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sys
+import time
 from typing import List
 import numpy as np
 
@@ -153,6 +154,9 @@ class ColbertLocal():
                 gpu_batch_size -= 1
             if gpu_batch_size <= 0:
                 gpu_batch_size = 1
+                # We tried to go below 1 for batch size -> wait out the other operations (5s)
+                time.sleep(5)
+
 
             logging.error(f"Retry colbert document embedding: {tries} with batch size: {gpu_batch_size}")
 
@@ -184,10 +188,10 @@ class ColbertLocal():
             ))
             return True
         except torch.OutOfMemoryError as e:
-            logging.error("Colbert embeddings error occurred, retrying...", exc_info=e)
+            logging.error(f"Colbert embeddings error occurred, retrying -> {repr(e)}")
             return None
         except BaseException as e:
-            logging.error("Colbert embeddings error occurred, retrying...", exc_info=e)
+            logging.error(f"Colbert embeddings error occurred, retrying -> {repr(e)}")
             if "Invalid buffer size" in repr(e):
                 return None
             return False

@@ -2,6 +2,7 @@ import gc
 import inspect
 import logging
 import threading
+import time
 import uuid
 from collections import OrderedDict
 from typing import List
@@ -168,6 +169,8 @@ class PendingLangchainEmbeddings(Embeddings):
                     gpu_batch_size -= 1
                 if gpu_batch_size <= 0:
                     gpu_batch_size = 1
+                    # We tried to go below 1 for batch size -> wait out the other operations (5s)
+                    time.sleep(5)
 
                 emb_res = self.actual_embedding_process(all_texts, request_ids, texts, gpu_batch_size)
 
@@ -194,10 +197,10 @@ class PendingLangchainEmbeddings(Embeddings):
                             self.pending_requests[rid]["cv"].notify_all()
             return True
         except torch.OutOfMemoryError as e:
-            logging.error("Pending embeddings error occurred, retrying...", exc_info=e)
+            logging.error(f"Pending embeddings error occurred, retrying -> {repr(e)}",)
             return None
         except BaseException as e:
-            logging.error("Pending embeddings error occurred, retrying...", exc_info=e)
+            logging.error(f"Pending embeddings error occurred, retrying -> {repr(e)}")
             if "Invalid buffer size" in repr(e):
                 return None
 

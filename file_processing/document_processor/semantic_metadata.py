@@ -144,7 +144,8 @@ def extract_semantic_metadata_together(technical_document: str):
         system_message_template = SystemMessagePromptTemplate.from_template(
             """You are a technical writer tasked with creating JSON metadata for a technical document. Your goal is to return a JSON object describing the most important characteristics of the component as metadata. When preparing the metadata, take inspiration from Industry 4.0 and digital twin concepts. Focus on product specifications, component details, operating conditions, performance parameters, and maintenance data relevant to various components like brakes, rotors, motors, displays, controllers, etc. Ignore irrelevant information.
 
-Please follow this general schema for the JSON response:
+Please follow this general schema for the JSON response, but remove the types and comments.
+Values, not found, should be marked as "unknown":
 
 {{
     "product_info": {{
