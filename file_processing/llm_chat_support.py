@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sys
 import time
@@ -205,11 +206,11 @@ def small_llm_json_response(messages: List[dict]):
     try:
         js = parse_json_markdown(extract.choices[0].message.content)
     except BaseException as e:
-        print("Non fatal:", e)
+        logging.error(f"Non fatal for markdown json:\n{extract.choices[0].message.content}", exc_info=e)
         try:
             js = parse_partial_json(extract.choices[0].message.content)
         except BaseException as e:
-            print("Non fatal:", e)
+            logging.error(f"Non fatal for partial json:\n{extract.choices[0].message.content}", exc_info=e)
             js = {}
     return js
 
