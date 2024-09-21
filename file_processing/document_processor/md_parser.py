@@ -114,15 +114,39 @@ def html_to_plain_text(html_content):
     return soup.get_text()
 
 # Custom Markdown splitter as MarkdownHeaderTextSplitter omits recurring headlines
-def split_markdown_by_header(markdown: str) -> list:
-    # Regular expression to match headers starting with `# `
-    # Note: Will include the matched header in the result
-    sections = re.split(r'(?=\n*(?:\s*^#\s+|^.+\n[=]{3,}\s*))', markdown, flags=re.MULTILINE)
+def split_markdown_by_header(markdown: str,
+                             max_length: int,
+                             header_level: int = 1) -> list:
 
-    # Remove empty sections
+    # We only want to split up to ###
+    if header_level > 3:
+        return [markdown]
+
+
+    # Note: Regex will include the matched header in the result
+    if header_level == 1:
+        # Match `#` or `===` for level 1 headers
+        header_pattern = r'(?=\n*(?:\s*^#\s+|^.+\n[=]{3,}\s*))'
+    elif header_level == 2:
+        # Match `##` or `---` for level 2 headers
+        header_pattern = r'(?=\n*(?:\s*^##\s+|^.+\n[-]{3,}\s*))'
+    else:
+        # Match `###` for level 3 headers
+        header_pattern = r'(?=\n*(?:\s*^###\s+))'
+
+    sections = re.split(header_pattern, markdown, flags=re.MULTILINE)
+
     sections = [section.strip() for section in sections if section.strip()]
 
-    return sections
+    split_sections = []
+    for section in sections:
+        # If the section is too large -> recursively split with the next header level
+        if len(section) > max_length and header_level < 3:
+            split_sections.extend(split_markdown_by_header(section, max_length, header_level + 1))
+        else:
+            split_sections.append(section)
+
+    return split_sections
 
 def semantic_markdown_chunks(md_content: str, headers_to_split_on: list,
                              min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH")),
@@ -131,7 +155,7 @@ def semantic_markdown_chunks(md_content: str, headers_to_split_on: list,
 
     parser = html2text.HTML2Text()
     parser.unicode_snob = True
-    chunks = split_markdown_by_header(md_content)
+    chunks = split_markdown_by_header(md_content, max_length)
     final_chunks = concat_chunks(chunks, min_length, max_length)
     items_dict = {}
     chunks_w_attachable_content = []
