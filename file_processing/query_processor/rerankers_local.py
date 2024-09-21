@@ -26,12 +26,10 @@ class RerankersLocal():
                                               normalize=True)
 
         reranked = [{
-            "content": chunk["content"],
+            # "content": chunk["content"],
             "score": rerank_score[index],
-            "rank": chunk["rank"],
             "orig_score": chunk["score"] / 100,
-            "passage_id": chunk["passage_id"],
-            "document_metadata": chunk["document_metadata"]
+            "passage_id": chunk["passage_id"]
         } for index, chunk in enumerate(res)]
 
         if reorder:
@@ -49,6 +47,7 @@ class RerankersLocal():
 
         scores = normalize([chunk["score"] for chunk in res])
 
+        # TODO: change rank into a score
         reranked = [{
             "content": chunk["content"],
             "orig_rank": reranked_orig.get_result_by_docid(chunk["passage_id"]).rank,
@@ -82,10 +81,8 @@ class RerankersLocal():
             # Don't return content again
             # "content": chunk["content"],
             "orig_score": chunk["score"],
-            "rank": chunk["rank"],
             "score": response.results[index].relevance_score,
-            "passage_id": chunk["passage_id"],
-            "document_metadata": chunk["document_metadata"]
+            "passage_id": chunk["passage_id"]
         } for index, chunk in enumerate(res)]
 
         if reorder:
