@@ -86,3 +86,6 @@ sentence-transformers
 langchain-community
 pylate
 psutil
+limits
+pdfplumber
+pypdf
