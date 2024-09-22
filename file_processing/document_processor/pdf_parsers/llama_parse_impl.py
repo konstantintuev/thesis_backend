@@ -28,12 +28,12 @@ def pdf_to_md_llama_parse(pdf_filepath: str, output_dir: str) -> PdfToMdDocument
 
     split_pdf_paths = split_pdf(pdf_filepath,
                                 output_dir,
-                                1,
+                                2,
                                 True)
     pages_out = PdfToMdDocument()
     for split_pdf_path in split_pdf_paths:
         # Create a temp dir into which we split the pdf - this way we honor the max pages requirement
-        documents = llama_parser.load_data(pdf_filepath)
+        documents = llama_parser.load_data(split_pdf_path.split_pdf_path)
         if documents is None or len(documents) == 0:
             return PdfToMdDocument()
         raw_page_md_content = ""
