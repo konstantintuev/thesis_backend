@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from datetime import datetime
@@ -128,14 +129,19 @@ class PDFMetadata:
             encryption_status = 'Encrypted' if 'Encrypt' in document.catalog else None
 
             def extract_metadata_value(value):
-                if isinstance(value, (bytes, str)):
-                    return value.decode('utf-8') if isinstance(value, bytes) else value
-                elif isinstance(value, PSLiteral):
-                    return str(value.name)
-                elif isinstance(value, PDFObjRef):
-                    return str(resolve1(value))
-                else:
-                    return str(value)
+                try:
+                    if isinstance(value, (bytes, str)):
+                        return value.decode('utf-8') if isinstance(value, bytes) else value
+                    elif isinstance(value, PSLiteral):
+                        return str(value.name)
+                    elif isinstance(value, PDFObjRef):
+                        return str(resolve1(value))
+                    else:
+                        return str(value)
+                except BaseException as e:
+                    logging.warning(f"Error during extract_metadata_value for {value}", exc_info=e)
+                    return ""
+
 
             file_info = {
                 'format': pdf_version,
