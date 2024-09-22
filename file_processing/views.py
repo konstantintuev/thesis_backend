@@ -100,7 +100,7 @@ async def pdf_to_chunks_task(file_uuid: uuid, file_name: str, temp_pdf_received:
                                                      chapter)
                                               for chapter in semantic_chapters]
     # Extract document information
-    pdf_metadata = PDFMetadata.from_pymupdf(file_name, temp_pdf_received)
+    pdf_metadata = PDFMetadata.from_pdfminer(file_name, temp_pdf_received)
     semantic_metadata = PDFMetadata.extract_from_text(semantic_chapters_w_attachable_content)
     total_metadata = {}
     total_metadata.update({

@@ -1,12 +1,22 @@
 import os
-import os
 import re
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from io import StringIO
+from typing import List
+from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 
-import fitz
+import pdfplumber
 import tiktoken
+from pdfminer.converter import TextConverter
+from pdfminer.layout import LAParams
+from pdfminer.pdfdocument import PDFDocument
+from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
+from pdfminer.pdfpage import PDFPage
+from pdfminer.pdfparser import PDFParser
+from pdfminer.pdftypes import PDFObjRef, resolve1
+from pdfminer.psparser import PSLiteral
+from pypdf import PdfWriter, PdfReader
 
 from file_processing.document_processor.semantic_metadata import extract_semantic_metadata_together
 
@@ -107,45 +117,78 @@ class PDFMetadata:
         )
 
     @classmethod
-    def from_pymupdf(cls, file_name: str, file_path: str) -> 'PDFMetadata':
-        document = fitz.open(file_path)
-        metadata = document.metadata
-        file_info = {
-            'format': metadata.get('format', ''),
-            'title': metadata.get('title', ''),
-            'author': metadata.get('author', ''),
-            'subject': metadata.get('subject', ''),
-            'keywords': metadata.get('keywords', ''),
-            'creator': metadata.get('creator', ''),
-            'producer': metadata.get('producer', ''),
-            'creationDate': metadata.get('creationDate', ''),
-            'modDate': metadata.get('modDate', ''),
-            'trapped': metadata.get('trapped', ''),
-            'encryption': None if not document.is_encrypted else 'Encrypted'
-        }
-        instance = cls.from_dict(file_info)
-        instance.fileName = file_name
-        instance.addedDate = datetime.now()
-        instance.numPages = document.page_count
-        first_page = document.load_page(0)
-        instance.pageDimensions = {
-            'width': first_page.rect.width,
-            'height': first_page.rect.height,
-            'measure': "pt"
-        }
-        instance.fileSize = os.path.getsize(file_path)
+    def from_pdfminer(cls, file_name: str, file_path: str) -> 'PDFMetadata':
+        with open(file_path, 'rb') as file:
+            parser = PDFParser(file)
+            document = PDFDocument(parser)
+            metadata = document.info[0] if document.info else {}
 
-        # Calculate word count and average words per page
-        word_count = 0
-        for page_num in range(document.page_count):
-            page = document.load_page(page_num)
-            text = page.get_text("text")
-            word_count += len(text.split())
+            pdf_version = f"PDF {parser.doc.version}" if hasattr(parser, 'doc') and hasattr(parser.doc,
+                                                                                            'version') else 'Unknown'
+            encryption_status = 'Encrypted' if 'Encrypt' in document.catalog else None
 
-        instance.wordCount = word_count
-        instance.avgWordsPerPage = word_count / document.page_count if document.page_count > 0 else 0
+            def extract_metadata_value(value):
+                if isinstance(value, (bytes, str)):
+                    return value.decode('utf-8') if isinstance(value, bytes) else value
+                elif isinstance(value, PSLiteral):
+                    return str(value.name)
+                elif isinstance(value, PDFObjRef):
+                    return str(resolve1(value))
+                else:
+                    return str(value)
+
+            file_info = {
+                'format': pdf_version,
+                'title': extract_metadata_value(metadata.get('Title', '')),
+                'author': extract_metadata_value(metadata.get('Author', '')),
+                'subject': extract_metadata_value(metadata.get('Subject', '')),
+                'keywords': extract_metadata_value(metadata.get('Keywords', '')),
+                'creator': extract_metadata_value(metadata.get('Creator', '')),
+                'producer': extract_metadata_value(metadata.get('Producer', '')),
+                'creationDate': extract_metadata_value(metadata.get('CreationDate', '')),
+                'modDate': extract_metadata_value(metadata.get('ModDate', '')),
+                'trapped': extract_metadata_value(metadata.get('Trapped', '')),
+                'encryption': encryption_status
+            }
+
+            num_pages = sum(1 for _ in PDFPage.create_pages(document))
+
+            instance = cls.from_dict(file_info)
+            instance.fileName = file_name
+            instance.addedDate = datetime.now()
+            instance.numPages = num_pages
+            instance.fileSize = os.path.getsize(file_path)
+
+            # Calculate word count and average words per page
+            instance.wordCount, instance.avgWordsPerPage = cls.get_word_count(file_path, num_pages)
 
         return instance
+
+    @staticmethod
+    def get_word_count(file_path: str, num_pages: int):
+        rsrcmgr = PDFResourceManager()
+        retstr = StringIO()
+        laparams = LAParams()
+        device = TextConverter(rsrcmgr, retstr, laparams=laparams)
+        interpreter = PDFPageInterpreter(rsrcmgr, device)
+        word_count = 0
+
+        with open(file_path, 'rb') as file:
+            parser = PDFParser(file)
+            document = PDFDocument(parser)
+
+            for page in PDFPage.create_pages(document):
+                interpreter.process_page(page)
+                text = retstr.getvalue()
+                word_count += len(text.split())
+                retstr.truncate(0)
+                retstr.seek(0)
+
+        device.close()
+        retstr.close()
+
+        avg_words_per_page = word_count / num_pages if num_pages > 0 else 0
+        return word_count, avg_words_per_page
 
     def to_dict(self) -> Dict[str, Any]:
         def datetime_to_millis(dt: Optional[datetime]) -> Optional[int]:
@@ -288,20 +331,21 @@ def get_filename_from_url(url):
     filename = os.path.basename(path)
     return filename
 
-
+# Use pdfminer, PyPDF2, pdfplumber for better license than PyMuPDF
 class SplitPDFOutput:
-    split_pdf_path: str
-    from_original_start_page: int
-    from_original_end_page: int
-    screenshots_per_page: List[str]
-
     def __init__(self, split_pdf_path: str, from_original_start_page: int, from_original_end_page: int,
                  screenshots_per_page: List[str]):
-        super().__init__()
         self.split_pdf_path = split_pdf_path
         self.from_original_start_page = from_original_start_page
         self.from_original_end_page = from_original_end_page
         self.screenshots_per_page = screenshots_per_page
+
+
+def save_page_screenshot(page, output_path, width):
+    image = page.to_image(None, round(width))
+    image_path = f"{output_path}.png"
+    image.save(image_path)
+    return image_path
 
 
 def split_pdf(input_pdf_path: str,
@@ -312,65 +356,67 @@ def split_pdf(input_pdf_path: str,
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    pdf_document = fitz.open(input_pdf_path)
     split_files = []
 
-    for start_page in range(0, len(pdf_document), pages_per_file):
-        pdf_writer = fitz.open()
-        end_page = min(start_page + pages_per_file, len(pdf_document))
+    pdf_reader = PdfReader(input_pdf_path)
+    total_pages = len(pdf_reader.pages)
+
+    pdf = pdfplumber.open(input_pdf_path) if page_screenshots or only_screenshots else None
+
+    for start_page in range(0, total_pages, pages_per_file):
+        end_page = min(start_page + pages_per_file, total_pages)
+        output_pdf_path = f"{output_folder}/pages_{start_page + 1}_to_{end_page}.pdf"
         page_screenshots_list = []
-        output_pdf_path = ""
 
-        if not only_screenshots:
-            pdf_writer.insert_pdf(pdf_document, from_page=start_page, to_page=end_page - 1)
-
-            output_pdf_path = f"{output_folder}/pages_{start_page + 1}_to_{end_page}.pdf"
-            pdf_writer.save(output_pdf_path)
-        if page_screenshots:
-            # Save each page to the same folder
+        if page_screenshots or only_screenshots:
             for page_index in range(start_page, end_page):
-                page = pdf_document.load_page(page_index)
-
-                original_size = page.mediabox
+                page = pdf.pages[page_index]
+                screenshot_output_path = f'{output_folder}/page_{page_index + 1}'
+                original_height = page.height
+                original_width = page.width
                 min_size = 900
                 max_size = 1800
 
-                if max(original_size.width, original_size.height) > max_size:
+                if max(original_width, original_height) > max_size:
                     # Zoom to bring down to max_size
-                    zoom = max_size / max(original_size.width, original_size.height)
-                elif min(original_size.width, original_size.height) < min_size:
+                    zoom = max_size / max(original_width, original_height)
+                elif min(original_width, original_height) < min_size:
                     # Zoom to bring up to min_size
-                    zoom = min_size / min(original_size.width, original_size.height)
+                    zoom = min_size / min(original_width, original_height)
                 else:
                     zoom = 1
 
-                # Define the transformation matrix for zoom
-                mat = fitz.Matrix(zoom, zoom)
+                screenshot_path = save_page_screenshot(page,
+                                                       screenshot_output_path,
+                                                       original_width * zoom)
+                page_screenshots_list.append(screenshot_path)
 
-                # Render the page to a pixmap (image)
-                pix = page.get_pixmap(matrix=mat)
-                screenshot_output_path = f'{output_folder}/page_{page_index + 1}.png'
-                pix.save(screenshot_output_path)
-                page_screenshots_list.append(screenshot_output_path)
-        pdf_writer.close()
+        if not only_screenshots:
+            pdf_writer = PdfWriter()
+            for page_num in range(start_page, end_page):
+                pdf_writer.add_page(pdf_reader.pages[page_num])
+
+            with open(output_pdf_path, 'wb') as output_pdf_file:
+                pdf_writer.write(output_pdf_file)
+        else:
+            output_pdf_path = ""
+
         split_files.append(SplitPDFOutput(output_pdf_path, start_page + 1, end_page, page_screenshots_list))
+
+    if pdf:
+        pdf.close()
+
     print(
         f"PDF split into {len(split_files)} files with up to {pages_per_file} pages each{' + page screenshots' if page_screenshots else ''} and saved in {output_folder}.")
-    pdf_document.close()
-
     return split_files
 
 
 if __name__ == '__main__':
     import argparse
-    import tempfile
-    import uuid
 
-    parser = argparse.ArgumentParser(description='PDF Split')
+    parser = argparse.ArgumentParser(description='PDF Metadata Extractor')
     parser.add_argument('input_pdf', type=str, help='Path to the input PDF file.')
     args = parser.parse_args()
 
-    temp_dir = tempfile.mkdtemp()
-    out_dir = os.path.join(temp_dir, f'{uuid.uuid4()}')
-
-    print(split_pdf(args.input_pdf, output_folder=out_dir, page_screenshots_list=True))
+    metadata = PDFMetadata.from_pdfminer(os.path.basename(args.input_pdf), args.input_pdf)
+    print(metadata)

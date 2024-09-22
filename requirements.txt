@@ -73,7 +73,6 @@ pypandoc
 FlagEmbedding
 unstructured
 gptpdf
-pymupdf4llm
 azure-ai-documentintelligence
 django-cors-headers
 peft

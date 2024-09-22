@@ -1,9 +1,10 @@
 # TODO: add from the thesis_prototyping repo
+import json
 import os
+import subprocess
 from typing import List
 
 from langchain_community.document_loaders import PDFMinerPDFasHTMLLoader
-import pymupdf4llm
 
 from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 from file_processing.document_processor.pdf_utils import split_pdf
@@ -101,28 +102,60 @@ def pdf_to_md_pdf_miner(pdf_filepath: str, output_dir: str) -> PdfToMdDocument:
 def pdf_to_md_pymupdf(pdf_filepath: str, output_dir: str) -> PdfToMdDocument:
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    """Type of output given page_chunks=True:
-    [{
-        "metadata": metadata,
-        "toc_items": page_tocs,
-        "tables": tables,
-        "images": images,
-        "graphics": graphics,
-        "text": page_output,
-    }]
-    """
+
     pdf_screenshots = split_pdf(
         pdf_filepath, output_dir, 1, True, True
     )
-    # noinspection PyTypeChecker
-    md_text: List[dict] = pymupdf4llm.to_markdown(pdf_filepath, page_chunks=True)
-    return PdfToMdDocument([PdfToMdPageInfo(
-        page.get("metadata", {"page": index + 1}).get("page"),
-        page.get("text", ""),
-        "",
-        "",
-        pdf_screenshots[index].screenshots_per_page[0]
-    ) for index, page in enumerate(md_text)])
+    bash_script = os.environ.get("PATH_TO_PDF_PARSER", None)
+    bash_script_path = os.path.abspath(os.path.expanduser(os.path.expandvars(bash_script)))
+
+    parent_dir = os.path.dirname(bash_script_path)
+    if bash_script is None:
+        return PdfToMdDocument()
+
+    if not os.path.isfile(bash_script):
+        print(f"Error: Bash script '{bash_script}' not found.")
+        return PdfToMdDocument()
+
+    command = [bash_script, pdf_filepath, "true"]
+
+    try:
+        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                cwd=parent_dir)
+
+        stdout = result.stdout
+        print("Output from the Bash script:")
+        print(stdout)
+
+        output_file = ""
+        for line in stdout.splitlines():
+            if "PDF content has been successfully extracted and saved to:" in line:
+                output_file = line.split(": ")[-1].strip()
+                print(f"Extracted content saved to: {output_file}")
+                break
+
+        if output_file is not None and len(output_file) > 0:
+            with open(output_file, 'r', encoding='utf-8') as file:
+                content = file.read()
+                return PdfToMdDocument([PdfToMdPageInfo(
+                    index + 1,
+                    page,
+                    "",
+                    "",
+                    pdf_screenshots[index].screenshots_per_page[0]
+                ) for index, page in enumerate(json.loads(content))])
+
+        stderr = result.stderr
+        if stderr:
+            print("Errors from the Bash script:")
+            print(stderr)
+
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred while running the Bash script: {e}")
+        print(f"Error output: {e.stderr}")
+        return PdfToMdDocument()
+
+    return PdfToMdDocument()
 
 
 if __name__ == '__main__':
