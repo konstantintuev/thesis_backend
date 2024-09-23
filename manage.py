@@ -9,9 +9,9 @@ load_dotenv()
 def main():
     import logging
     logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s')
-    logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
+    #logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
     logging.getLogger('langchain_community.document_loaders.parsers.doc_intelligence').setLevel(logging.ERROR)
-    logging.getLogger('httpx').setLevel(logging.WARNING)
+    #logging.getLogger('httpx').setLevel(logging.WARNING)
 
     class LoggerWriter:
         def __init__(self, logfct):

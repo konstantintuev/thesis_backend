@@ -1,5 +1,6 @@
 import atexit
 import json
+import logging
 import os
 
 from django.apps import AppConfig
@@ -29,10 +30,15 @@ def load_document_trees():
 def load_all_from_db():
     files = get_all_files_queue()
     if not files or "files" not in files:
+        logging.error(
+            f"No documents to re-encode from local db as colbert index is corrupted/empty (files to process = -1)!")
         return
     files = files["files"]
     if len(files) == 0:
+        logging.error(
+            f"No documents to re-encode from local db as colbert index is corrupted/empty (files to process = {len(files)})!")
         return
+    logging.error(f"Re-encoding documents from local db as colbert index is corrupted/empty (files to process = {len(files)})!")
     for file in files:
         file["tree"] = file["result"]["tree"]
         file["uuid_items"] = file["result"]["uuid_items"]
