@@ -221,8 +221,8 @@ class ColbertLocal():
             internal_source_count = (source_count if source_count else 100)
 
             if unique_file_ids and len(unique_file_ids) > 0:
-                # Filter post-factum
-                internal_source_count = len(unique_file_ids) * 10
+                # Filter post-factum - find max
+                internal_source_count = 200
 
             # It's a list of numpy arrays
             queries_embeddings = []
