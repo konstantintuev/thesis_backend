@@ -220,6 +220,10 @@ class ColbertLocal():
 
             internal_source_count = (source_count if source_count else 100)
 
+            if unique_file_ids and len(unique_file_ids) > 0:
+                # Filter post-factum
+                internal_source_count = len(unique_file_ids) * 10
+
             # It's a list of numpy arrays
             queries_embeddings = []
             tries = 0
@@ -248,6 +252,12 @@ class ColbertLocal():
             )
 
             res = res[0]  # [0] as we have a single query
+
+            if unique_file_ids and len(unique_file_ids) > 0:
+                res = [item for item in res if item["id"] in unique_file_ids]
+
+            if source_count and len(res) > source_count:
+                res = res[:source_count]
 
             scores_normal = normalize([chunk["score"] for chunk in res])
 
