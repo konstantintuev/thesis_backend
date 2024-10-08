@@ -191,6 +191,11 @@ class CustomFormatter(logging.Formatter):
         return super(CustomFormatter, self).format(record)
 
 
+class NoRawStdFormattedToConsole(logging.Filter):
+    def filter(self, record):
+        return record.name != 'STDOUT' and record.name != 'STDERR'
+
+
 # Log writers -->
 file_handler = logging.FileHandler(log_file_path)
 file_handler.setLevel(logging.DEBUG)
@@ -201,6 +206,7 @@ file_handler.setFormatter(formatter)
 console_handler = logging.StreamHandler(sys.__stdout__)
 console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(colour_formatter)
+console_handler.addFilter(NoRawStdFormattedToConsole())
 # Log writers <--
 
 # Configure the root logger
@@ -220,18 +226,21 @@ class StreamToLogger:
 
     def write(self, message):
         # Progressbars for example need a buffer to get final state
-        if message.endswith('\n'):
-            self.buf.append(message.removesuffix('\n'))
-            out = ''.join(self.buf).strip()
-            # Leading/trailing new lines, spaces are useless
-            if out.strip():
-                self.logger.log(self.log_level, out.strip())
-            self.buf = []
-        else:
-            self.buf.append(message)
+        for char in message:
+            if char == '\r':
+                # \r indicates an in-place line update (progressbar)
+                self.buf = []
+            elif char == '\n':
+                out = ''.join(self.buf).strip()
+                if out:
+                    self.logger.log(self.log_level, out)
+                self.buf = []
+            else:
+                self.buf.append(char)
+        sys.__stdout__.write(message)
 
     def flush(self):
-        pass
+        sys.__stdout__.flush()
 
 
 # Pipe stdout to logging
