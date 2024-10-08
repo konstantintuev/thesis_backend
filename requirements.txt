@@ -89,3 +89,4 @@ psutil
 limits
 pdfplumber
 pypdf
+colorlog

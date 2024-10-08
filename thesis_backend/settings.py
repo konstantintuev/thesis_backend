@@ -11,6 +11,12 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import sys
+import os
+import subprocess
+from datetime import datetime
+import logging
+import colorlog
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -133,3 +139,127 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+def get_git_commit_message():
+    try:
+        commit_msg = subprocess.check_output(
+            ["git", "log", "-1", "--pretty=%B"]
+        ).strip().decode('utf-8')
+        return commit_msg[:18].replace(' ', '_').lower()
+    except Exception as e:
+        print(f"Error fetching commit message: {e}")
+        return "no_commit_msg"
+
+
+def get_formatted_time():
+    now = datetime.now()
+    return now.strftime("%H.%M.%S_%d.%m.%y")
+
+
+commit_msg_part = get_git_commit_message()
+formatted_time = get_formatted_time()
+
+base_log_dir = os.path.join(BASE_DIR, "logs")
+os.makedirs(base_log_dir, exist_ok=True)
+log_file_name = f"all_logs_{commit_msg_part}_{formatted_time}.log"
+log_file_path = os.path.join(base_log_dir, log_file_name)
+
+# Create a colour formatter
+colour_formatter = colorlog.ColoredFormatter(
+    "%(log_color)s%(levelname)s: %(message)s",
+    log_colors={
+        'DEBUG': 'cyan',
+        'INFO': 'green',
+        'INFO_RAW': 'blue',
+        'WARNING': 'yellow',
+        'ERROR': 'red',
+        'ERROR_RAW': 'light_red',
+        'CRITICAL': 'bold_red',
+    },
+    datefmt='%H:%M:%S %d.%m.%y'
+)
+
+
+# Add custom log level for raw std
+class CustomFormatter(logging.Formatter):
+    def format(self, record):
+        if record.name == 'STDOUT':
+            record.levelname = 'INFO_RAW'
+        elif record.name == 'STDERR':
+            record.levelname = 'ERROR_RAW'
+        return super(CustomFormatter, self).format(record)
+
+
+# Log writers -->
+file_handler = logging.FileHandler(log_file_path)
+file_handler.setLevel(logging.DEBUG)
+formatter = CustomFormatter('[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s',
+                            datefmt='%H:%M:%S %d.%m.%y')
+file_handler.setFormatter(formatter)
+
+console_handler = logging.StreamHandler(sys.__stdout__)
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(colour_formatter)
+# Log writers <--
+
+# Configure the root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.handlers = [file_handler, console_handler]
+# logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
+logging.getLogger('langchain_community.document_loaders.parsers.doc_intelligence').setLevel(logging.ERROR)
+# logging.getLogger('httpx').setLevel(logging.WARNING)
+
+
+class StreamToLogger:
+    def __init__(self, logger, log_level):
+        self.logger = logger
+        self.log_level = log_level
+        self.buf = []
+
+    def write(self, message):
+        # Progressbars for example need a buffer to get final state
+        if message.endswith('\n'):
+            self.buf.append(message.removesuffix('\n'))
+            out = ''.join(self.buf).strip()
+            # Leading/trailing new lines, spaces are useless
+            if out.strip():
+                self.logger.log(self.log_level, out.strip())
+            self.buf = []
+        else:
+            self.buf.append(message)
+
+    def flush(self):
+        pass
+
+
+# Pipe stdout to logging
+stdout_logger = logging.getLogger('STDOUT')
+stderr_logger = logging.getLogger('STDERR')
+sys.stdout = StreamToLogger(stdout_logger, logging.INFO)
+sys.stderr = StreamToLogger(stderr_logger, logging.ERROR)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            'format': '[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s',
+            'datefmt': '%H:%M:%S %d.%m.%y'
+        },
+    },
+    # Propagate messages to the root logger
+    'loggers': {
+        'django': {
+            'handlers': [],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': [],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+    },
+}
