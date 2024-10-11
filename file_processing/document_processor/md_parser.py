@@ -149,8 +149,8 @@ def split_markdown_by_header(markdown: str,
     return split_sections
 
 def semantic_markdown_chunks(md_content: str, headers_to_split_on: list,
-                             min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH")),
-                             max_length: int = int(os.environ.get("MAX_CHUNK_LENGTH"))) -> (
+                             min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH", "1500")),
+                             max_length: int = int(os.environ.get("MAX_CHUNK_LENGTH", "3000"))) -> (
         list[str], UUIDExtractedItemDict):
 
     parser = html2text.HTML2Text()

@@ -24,8 +24,8 @@ class SentenceTransformerEmbeddings(Embeddings):
 
 
 def chunk_into_semantic_chapters(model: Embeddings, text: str, uuid_items: UUIDExtractedItemDict = {},
-                                 min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH")),
-                                 max_length: int = int(os.environ.get("MAX_CHUNK_LENGTH"))) -> List[str]:
+                                 min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH", "1500")),
+                                 max_length: int = int(os.environ.get("MAX_CHUNK_LENGTH", "3000"))) -> List[str]:
     chunker = SemanticChunker(model)
     return chunker.split_text(text, uuid_items, min_length, max_length)
 

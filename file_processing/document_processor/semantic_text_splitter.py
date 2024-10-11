@@ -361,8 +361,8 @@ class SemanticChunker(BaseDocumentTransformer):
         return final_adjusted_sentences
 
     def split_text(self, text: str, uuid_items: UUIDExtractedItemDict = {},
-                   min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH")),
-                   max_length: int = int(os.environ.get("MAX_CHUNK_LENGTH"))) -> List[str]:
+                   min_length: int = int(os.environ.get("MIN_CHUNK_LENGTH", "1500")),
+                   max_length: int = int(os.environ.get("MAX_CHUNK_LENGTH", "3000"))) -> List[str]:
         single_sentences_list = self.split_sentences(text, uuid_items, max_length)
 
         if len(single_sentences_list) == 1:
