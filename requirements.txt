@@ -90,3 +90,4 @@ limits
 pdfplumber
 pypdf
 colorlog
+openpyxl
