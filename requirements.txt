@@ -90,4 +90,8 @@ limits
 pdfplumber
 pypdf
 colorlog
+
+#eval
 openpyxl
+matplotlib
+lark

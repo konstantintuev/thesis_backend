@@ -21,6 +21,7 @@ from langchain.chains.query_constructor.base import (
 )
 from langchain.chains.query_constructor.schema import AttributeInfo
 
+# Thank you, ChatGPT for adding markdown formatting and helping understand which parts I need to emphasise.
 MEGA_PROMPT = """\
 ### Goal:
 Format the user’s query using the schema below.
@@ -55,9 +56,12 @@ Each comparison in the list of comparisons applied with logical 'and' has the fo
   - Only (`eq`, `ne`, `contain`, `not_contain`, `like`, `not_like`, `in`, `nin`, `regex_match`, `not_regex_match`) can be applied to strings, other comparators are invalid for string types
   - (`in`, `nin`) can be applied to all arrays
   - (`contain`, `not_contain`, `like`, `not_like`, `in`, `nin`, `regex_match`, `not_regex_match`) can only be applied to arrays of strings, where the comparator is checked against each string in the array
-- **No Filter**: Set `reason_for_no_filter` to empty `[]` and set `reason_for_no_filter` to the reason no filter can be applied if:
-  - The query needs unsupported operators (like `or`).
-  - The query is too broad or unrelated to data source attributes.
+  - Logical 'OR' can usually be augmented with `regex_match`, `not_regex_match`.
+- **No Filter**: Set `reason_for_no_filter` to empty `[]` and set `reason_for_no_filter` to the reason no filter can be applied if (one or many of the conditions below):
+  - **Most Important, Check First**: The query tries to use unknown data source attributes (explain).
+  - The query is too broad (explain).
+  - The query is unrelated to data source attributes (explain).
+  - The query can't be represented with the current constraints (explain).
 
 ### Important:
 - **Do not use sample values directly**. They are provided for understanding how attributes and values may look, but the response should be based on the actual user query and data source.

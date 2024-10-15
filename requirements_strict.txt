@@ -104,4 +104,8 @@ limits==3.13.0
 pdfplumber==0.11.4
 pypdf==4.2.0
 colorlog==6.8.2
+
+#eval
 openpyxl
+matplotlib
+lark
