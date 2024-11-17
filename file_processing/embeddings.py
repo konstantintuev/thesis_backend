@@ -25,9 +25,12 @@ class BGEM3Flag(Embeddings):
         self.model = BGEM3FlagModel('BAAI/bge-m3',
                                     use_fp16=True)
 
+    def set_batch_size(self, batch_size):
+        self.batch_size = batch_size
+
     def get_default_batch_size(self):
         # Twice as memory intensive as colbert
-        return round(get_batch_size() / 2)
+        return round(get_batch_size() / 2) if not hasattr(self, 'batch_size') else self.batch_size
 
     def embed_documents(self, *args, **kwargs) -> List[List[float]]:
         """
@@ -80,7 +83,7 @@ class BGEM3Flag(Embeddings):
             torch.cuda.empty_cache()
 
         # Use the extracted parameters to embed the query
-        return self.model.encode([text], batch_size=gpu_batch_size)['dense_vecs'][0]
+        return self.model.encode([text], batch_size=gpu_batch_size)['dense_vecs'].tolist()[0]
 
 
 """

@@ -64,7 +64,11 @@ def combine_sentences(sentences: List[dict], buffer_size: int = 1, uuid_items: U
         # Then add the whole thing to your dict
         # Store the combined sentence in the current sentence dict
         sentences[i]["combined_sentence"] = combined_sentence
-        sentences[i]["length"] = len(sentences[i]["sentence"]) + sum([uuid_items[uuid]["length"] for uuid in uuids])
+        sentences[i]["length"] = len(sentences[i]["sentence"]) + sum([uuid_items[uuid]["length"]
+                                                                      if uuid_items and
+                                                                         uuid in uuid_items and
+                                                                         "length" in uuid_items[uuid] else 0
+                                                                      for uuid in uuids])
         if len(uuids) > 0:
             print("ok")
 
@@ -324,13 +328,21 @@ class SemanticChunker(BaseDocumentTransformer):
         for sentence in single_sentences_list:
             # Extract all UUIDs from the actual sentence for length calculation (UUIDs point to large, unchunckable objects)
             uuids = re.findall(uuid_pattern, sentence)
-            length = len(sentence) + sum([uuid_items[uuid]["length"] for uuid in uuids])
+            length = len(sentence) + sum([uuid_items[uuid]["length"]
+                                          if uuid_items and
+                                             uuid in uuid_items and
+                                             "length" in uuid_items[uuid] else 0
+                                          for uuid in uuids])
             if length > max_length:
                 # Further split the sentence using punctuation if it's longer than max_length
                 subsentences = re.split(self.punctuation_split_regex, sentence)
                 for subsentence in subsentences:
                     uuids = re.findall(uuid_pattern, subsentence)
-                    length = len(subsentence) + sum([uuid_items[uuid]["length"] for uuid in uuids])
+                    length = len(subsentence) + sum([uuid_items[uuid]["length"]
+                                                     if uuid_items and
+                                                        uuid in uuid_items and
+                                                        "length" in uuid_items[uuid] else 0
+                                                     for uuid in uuids])
                     # Check again if subsentence is still too long, and handle accordingly
                     if length > max_length:
                         words = subsentence.split()

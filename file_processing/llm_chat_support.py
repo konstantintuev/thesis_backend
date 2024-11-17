@@ -182,6 +182,39 @@ llama_8b_llm_crazy = ChatTogether(
     max_retries=2,
 )
 
+llama_8b_llm_no_imagination = ChatTogether(
+    model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
+    temperature=0,
+    max_tokens=None,
+    timeout=None,
+    max_retries=2,
+)
+
+# Very imaginative
+big_llama_chat_model_crazy = ChatTogether(
+    model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
+    max_retries=2,
+    temperature=1
+)
+
+# Make it keep to the rules - https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/advanced-prompt-engineering?pivots=programming-language-chat-completions#temperature-and-top_p-parameters
+big_llama_model_concrete = ChatTogether(
+    model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
+    temperature=0.2
+)
+
+# RankGPT - just reorder
+big_llama_model_no_imagination = ChatTogether(
+    model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
+    temperature=0
+)
+
+# Make it think - traditional temp - https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/advanced-prompt-engineering?pivots=programming-language-chat-completions#temperature-and-top_p-parameters
+big_llama_model_abstract = ChatTogether(
+    model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
+    temperature=0.7
+)
+
 together = Together()
 
 class LLMTemp(Enum):
@@ -218,25 +251,27 @@ class LLMTypes(Enum):
     BIG_VISUAL_MODEL = 0
     SMALL_JSON_MODEL = 1
 
+use_azure_gpt4o = False
+
 def get_llm(temp: LLMTemp, type: LLMTypes = LLMTypes.BIG_VISUAL_MODEL):
     if temp == LLMTemp.NO_IMAGINATION:
         if type == LLMTypes.BIG_VISUAL_MODEL:
-            return model_no_imagination
+            return model_no_imagination if use_azure_gpt4o else big_llama_model_no_imagination
         elif type == LLMTypes.SMALL_JSON_MODEL:
             return llama_8b_llm_no_imagination
     elif temp == LLMTemp.CONCRETE:
         if type == LLMTypes.BIG_VISUAL_MODEL:
-            return model_concrete
+            return model_concrete if use_azure_gpt4o else big_llama_model_concrete
         elif type == LLMTypes.SMALL_JSON_MODEL:
             return llama_8b_llm_concrete
     elif temp == LLMTemp.ABSTRACT:
         if type == LLMTypes.BIG_VISUAL_MODEL:
-            return model_abstract
+            return model_abstract if use_azure_gpt4o else big_llama_model_abstract
         elif type == LLMTypes.SMALL_JSON_MODEL:
             return llama_8b_llm_abstract
     elif temp == LLMTemp.CRAZY:
         if type == LLMTypes.BIG_VISUAL_MODEL:
-            return chat_model_crazy
+            return chat_model_crazy if use_azure_gpt4o else big_llama_chat_model_crazy
         elif type == LLMTypes.SMALL_JSON_MODEL:
             return llama_8b_llm_crazy
 
