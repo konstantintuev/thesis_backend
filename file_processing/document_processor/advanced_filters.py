@@ -24,7 +24,7 @@ def ask_file_llm(query_text: str, file_sections: List[str]):
 
     chat_prompt = ChatPromptTemplate.from_messages([system_message_template, human_message_template])
 
-    structured_llm = get_llm(LLMTemp.CONCRETE, LLMTypes.SMALL_JSON_MODEL).with_structured_output(AdvancedFilterSchema)
+    structured_llm = get_llm(LLMTemp.CONCRETE, LLMTypes.BIG_VISUAL_MODEL).with_structured_output(AdvancedFilterSchema)
 
     rewrite_query = (chat_prompt | structured_llm)
 

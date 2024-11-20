@@ -182,14 +182,6 @@ llama_8b_llm_crazy = ChatTogether(
     max_retries=2,
 )
 
-llama_8b_llm_no_imagination = ChatTogether(
-    model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
-    temperature=0,
-    max_tokens=None,
-    timeout=None,
-    max_retries=2,
-)
-
 # Very imaginative
 big_llama_chat_model_crazy = ChatTogether(
     model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
@@ -251,7 +243,7 @@ class LLMTypes(Enum):
     BIG_VISUAL_MODEL = 0
     SMALL_JSON_MODEL = 1
 
-use_azure_gpt4o = False
+use_azure_gpt4o = True
 
 def get_llm(temp: LLMTemp, type: LLMTypes = LLMTypes.BIG_VISUAL_MODEL):
     if temp == LLMTemp.NO_IMAGINATION:
