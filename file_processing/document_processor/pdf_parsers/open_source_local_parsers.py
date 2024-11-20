@@ -1,4 +1,8 @@
-# TODO: add from the thesis_prototyping repo
+if __name__ == "__main__":
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
 import json
 import os
 import subprocess
@@ -8,6 +12,7 @@ from langchain_community.document_loaders import PDFMinerPDFasHTMLLoader
 
 from file_processing.document_processor.pdf_parsers.pdf_2_md_types import PdfToMdDocument, PdfToMdPageInfo
 from file_processing.document_processor.pdf_utils import split_pdf
+from file_processing.storage_manager import global_temp_dir
 
 
 # Mostly from https://python.langchain.com/v0.1/docs/modules/data_connection/document_loaders/pdf/
@@ -106,18 +111,18 @@ def pdf_to_md_pymupdf(pdf_filepath: str, output_dir: str) -> PdfToMdDocument:
     pdf_screenshots = split_pdf(
         pdf_filepath, output_dir, 1, True, True
     )
-    bash_script = os.environ.get("PATH_TO_PDF_PARSER", None)
+    bash_script = "../../../"+os.environ.get("PATH_TO_PDF_PARSER", None)
     bash_script_path = os.path.abspath(os.path.expanduser(os.path.expandvars(bash_script)))
 
     parent_dir = os.path.dirname(bash_script_path)
     if bash_script is None:
         return PdfToMdDocument()
 
-    if not os.path.isfile(bash_script):
-        print(f"Error: Bash script '{bash_script}' not found.")
+    if not os.path.isfile(bash_script_path):
+        print(f"Error: Bash script '{bash_script_path}' not found.")
         return PdfToMdDocument()
 
-    command = [bash_script, pdf_filepath, "true"]
+    command = [bash_script_path, pdf_filepath, "true"]
 
     try:
         result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
@@ -159,16 +164,15 @@ def pdf_to_md_pymupdf(pdf_filepath: str, output_dir: str) -> PdfToMdDocument:
 
 
 if __name__ == '__main__':
-    from dotenv import load_dotenv
-
-    load_dotenv()
     import argparse
+
+    out_dir = os.path.join(global_temp_dir, "OK")
 
     parser = argparse.ArgumentParser(description='PDF to MD with Open Source Tools')
     parser.add_argument('input_pdf', type=str, help='Path to the input PDF file.')
     parser.add_argument("--tool_name", type=str, default='pdf_miner')
     args = parser.parse_args()
     if (args.tool_name == 'pdf_to_md_pdf_miner'):
-        print(pdf_to_md_pdf_miner(args.input_pdf))
+        print(pdf_to_md_pdf_miner(args.input_pdf, out_dir))
     elif (args.tool_name == 'pdf_to_md_pymupdf'):
-        print(pdf_to_md_pymupdf(args.input_pdf))
+        print(pdf_to_md_pymupdf(args.input_pdf, out_dir))

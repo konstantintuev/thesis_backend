@@ -14,7 +14,7 @@ from file_processing.document_processor.semantic_text_splitter import uuid_patte
 from file_processing.document_processor.types_local import UUIDExtractedItemDict
 from file_processing.file_queue_management.file_queue_db import get_file_from_queue, get_all_files_queue
 from file_processing.query_processor.process_search_query import rewrite_search_query_based_on_history
-from file_processing.query_processor.rerankers_local import do_llama_rerank, normalize
+from file_processing.document_processor.rerankers_local import do_llama_rerank, normalize
 
 
 def add_uuid_object_to_string(match, uuid_items: UUIDExtractedItemDict):

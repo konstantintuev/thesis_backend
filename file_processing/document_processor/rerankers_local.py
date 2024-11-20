@@ -1,12 +1,8 @@
 from operator import attrgetter, itemgetter
 
-import torch
 from FlagEmbedding import FlagLLMReranker
-from colbert import Checkpoint
-from colbert.infra import ColBERTConfig
 from pylate import rank
 from together import Together
-from transformers import is_torch_npu_available
 
 from file_processing.document_processor.colbert_utils_pylate import colbert_local, normalize
 from file_processing.document_processor.rank_gpt import RankGPTRanker

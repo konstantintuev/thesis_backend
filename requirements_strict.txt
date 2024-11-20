@@ -93,7 +93,7 @@ sqlparse==0.5.1
 tenacity==8.5.0
 tiktoken==0.7.0
 together==1.2.12
-torch==2.4.1
+torch
 torchvision
 tqdm==4.66.5
 transformers==4.44.2
