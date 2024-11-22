@@ -18,8 +18,7 @@ def pdf_to_md_llama_parse_standard(pdf_filepath: str) -> str | None:
     documents = llama_parser.load_data(pdf_filepath)
     if documents is None or len(documents) == 0:
         return None
-    document = documents[0]
-    return document.text
+    return "\n".join([document.text for document in documents])
 
 
 def pdf_to_md_llama_parse(pdf_filepath: str, output_dir: str) -> PdfToMdDocument:
