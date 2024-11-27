@@ -5,7 +5,8 @@ Here is how to run it:
 1. Create a python virtual environment
 2. Install pytorch for your hardware
 3. Install the requirements from requirements_strict.txt
-4. Run the django server
+4. Setup .env
+5. Run the django server
 ```bash
 python manage.py runserver
 ```
